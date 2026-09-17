@@ -40,33 +40,140 @@ LoopGoal operates at two complementary levels:
 
 ---
 
-## 1. Using LoopGoal as an In-Agent Skill
+## 1. Step-by-Step User Guides
 
-Type slash-commands directly in your AI coding assistant:
+### Guide A: Using LoopGoal Inside Your AI Agent (Antigravity, Claude Code, etc.)
 
-```text
-/loopgoal "improve API error handling"
-```
+Follow these 3 simple steps directly in your chat:
 
-### Supported Commands
+1. **Start the Loop**:
+   Type the slash command with your desired goal:
+   ```text
+   /loopgoal "improve API error handling and validation"
+   ```
+2. **Observe Autonomous Progress**:
+   The agent will run through disciplined, bounded iterations:
+   ```text
+   LoopGoal started
+   Goal: improve API error handling and validation
 
+   Iteration 1
+   → Inspecting repository
+   → Identified: duplicate 400 Bad Request error payloads in api/handlers.go
+   → Implementing: extracted RespondBadRequest helper
+   ✓ Verification: go test ./... (passed)
+   ✓ Committed: refactor(api): centralize bad request error responses (9a1f23c)
+
+   Iteration 2
+   → Inspecting repository
+   → Identified: missing validation for negative amounts in transfer service
+   → Implementing: added validation rule and edge-case unit test
+   ✓ Verification: go test ./... (passed)
+   ✓ Committed: feat(transfer): validate non-negative transfer amounts (3b4d5e6)
+   ```
+3. **Monitor or Halt Anytime**:
+   - Check current progress: `/loopgoal status`
+   - Gracefully halt: `/loopgoal stop`
+
+---
+
+### Guide B: Using the Standalone CLI Supervisor
+
+For headless execution, CI pipelines, or external coding agents:
+
+1. **Initialize Your Project**:
+   ```bash
+   loopgoal init
+   ```
+   LoopGoal automatically inspects your repository (`go.mod`, `package.json`, `Cargo.toml`, `pyproject.toml`) and configures your project's verification test commands.
+
+2. **Review or Customize `.loopgoal/config.yaml`**:
+   ```yaml
+   goal: "Add comprehensive unit tests for all edge cases"
+   agent:
+     command: "codex"
+   verify:
+     - "go test ./..."
+     - "go vet ./..."
+   limits:
+     iterations: 10
+   ```
+
+3. **Start the Autonomous Supervisor**:
+   ```bash
+   loopgoal run
+   ```
+   To inspect live status in a separate terminal:
+   ```bash
+   loopgoal status
+   ```
+   To halt gracefully without corrupting state or in-flight Git changes:
+   ```bash
+   loopgoal stop
+   ```
+
+---
+
+## 2. Real-World Use Cases
+
+Here are the 4 most popular ways developers use LoopGoal:
+
+### Use Case 1: Automated Test Coverage Expansion
+- **The Problem**: A backend service has 45% unit test coverage; writing tests for dozens of edge cases is tedious.
+- **The LoopGoal Approach**:
+  ```text
+  /loopgoal "increase test coverage for edge cases across all services"
+  ```
+  1. **Iteration 1**: Detects missing test for nil pointer in user authentication; adds test fixture; verifies with `go test ./...`; commits.
+  2. **Iteration 2**: Detects untested timeout case in database connection pool; adds timeout mock test; verifies; commits.
+  3. **Iteration 3**: Detects malformed JSON payload handling; adds test; verifies; commits.
+
+### Use Case 2: Codebase Modernization & Technical Debt Reduction
+- **The Problem**: A legacy codebase has inconsistent error handling, deprecated utility functions, or mixed async patterns.
+- **The LoopGoal Approach**:
+  ```text
+  /loopgoal "modernize error handling and replace deprecated helpers"
+  ```
+  1. **Iteration 1**: Replaces deprecated `ioutil.ReadFile` with `os.ReadFile` in config module; verifies tests pass; commits.
+  2. **Iteration 2**: Standardizes error wrapping using `fmt.Errorf("%w")` in auth module; verifies; commits.
+  3. **Iteration 3**: Consolidates duplicate validation helpers in user service; verifies; commits.
+
+### Use Case 3: Overnight / Unattended Continuous Improvement
+- **The Problem**: You want to improve a project overnight while you sleep, but standard AI agents often go off the rails, hallucinate broad rewrites, or break working functionality.
+- **The LoopGoal Safety Advantage**:
+  - LoopGoal limits the agent to **one small bounded improvement per cycle**.
+  - If any test or linter fails, LoopGoal triggers a fix loop. If it cannot be resolved, it halts safely without committing broken code.
+  - Zero pushes to remote repository (`push = disabled`).
+  - Pre-existing uncommitted work in your working tree is preserved and never overwritten.
+
+### Use Case 4: Project-Agnostic Microservices & Monorepos
+- **The Problem**: Engineering teams use Go, Next.js, Python, and Rust across different repositories.
+- **The LoopGoal Solution**:
+  - In a Go repo: runs `go test ./...`
+  - In a Next.js repo: runs `npm run lint` && `npm run typecheck` && `npm test`
+  - In a Python repo: runs `pytest`
+  - The LoopGoal supervisor engine remains 100% identical; only project configuration adapts.
+
+---
+
+## 3. Supported In-Agent Commands & Adapters
+
+### Slash Commands
 - `/loopgoal`: Starts or resumes the autonomous loop using `.loopgoal/config.yaml`.
 - `/loopgoal <goal>`: Runs the autonomous loop toward the specified goal.
 - `/loopgoal status`: Displays current execution status, iteration count, last task, and last commit.
 - `/loopgoal stop`: Gracefully halts the autonomous loop.
 
-### Agent Adapters
-
-LoopGoal provides native configuration and prompt adapters for leading agent environments in [`adapters/`](./adapters/):
-
-- **Google Antigravity**: [`adapters/antigravity/SKILL.md`](./adapters/antigravity/SKILL.md) (also installed in `.agents/skills/loopgoal/`)
+### Native Agent Adapters
+LoopGoal provides native configuration and prompt adapters in [`adapters/`](./adapters/):
+- **Google Antigravity**: [`adapters/antigravity/SKILL.md`](./adapters/antigravity/SKILL.md) (installed in `.agents/skills/loopgoal/`)
 - **Claude Code**: [`adapters/claude/CLAUDE.md`](./adapters/claude/CLAUDE.md)
 - **Codex / OpenCode**: [`adapters/codex/CODEX.md`](./adapters/codex/CODEX.md)
 - **Universal LLM Prompt**: [`adapters/generic/SYSTEM_PROMPT.md`](./adapters/generic/SYSTEM_PROMPT.md)
 
 ---
 
-## 2. Using the Standalone Go CLI Supervisor
+## 4. Standalone Go CLI Reference
 
 For workflows where a local command-line supervisor controls an external agent process (e.g. headless CI, local scripts, or external CLI adapters).
 

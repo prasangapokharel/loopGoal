@@ -220,10 +220,19 @@ func RunStatus(args []string) error {
 	if lastCommit == "" {
 		lastCommit = "(none)"
 	}
-	fmt.Printf("Last commit: %s\n", lastCommit)
+	if st.LastCheck != "" {
+		fmt.Printf("Last check:  %s\n", st.LastCheck)
+	}
+	if len(st.RemainingQueue) > 0 {
+		fmt.Printf("Remaining:   %s\n", strings.Join(st.RemainingQueue, ", "))
+	}
 
-	fmt.Printf("Started:     %s\n", st.StartedAt.Format(time.RFC3339))
-	fmt.Printf("Updated:     %s\n", st.UpdatedAt.Format(time.RFC3339))
+	if !st.StartedAt.IsZero() {
+		fmt.Printf("Started:     %s\n", st.StartedAt.Format(time.RFC3339))
+	}
+	if !st.UpdatedAt.IsZero() {
+		fmt.Printf("Updated:     %s\n", st.UpdatedAt.Format(time.RFC3339))
+	}
 	return nil
 }
 

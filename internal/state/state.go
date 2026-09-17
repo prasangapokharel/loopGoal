@@ -22,14 +22,87 @@ const (
 
 // State tracks the persistent execution state of LoopGoal.
 type State struct {
-	Goal       string    `json:"goal"`
-	Iteration  int       `json:"iteration"`
-	Status     string    `json:"status"`
-	LastTask   string    `json:"last_task"`
-	LastCommit string    `json:"last_commit"`
-	StartedAt  time.Time `json:"started_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
-	PID        int       `json:"pid,omitempty"`
+	Goal           string    `json:"goal"`
+	Iteration      int       `json:"iteration"`
+	Status         string    `json:"status"`
+	LastTask       string    `json:"last_task"`
+	LastCommit     string    `json:"last_commit"`
+	LastCheck      string    `json:"last_check,omitempty"`
+	RemainingQueue []string  `json:"remaining_queue,omitempty"`
+	StartedAt      time.Time `json:"started_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	PID            int       `json:"pid,omitempty"`
+}
+
+// UnmarshalJSON implements custom JSON unmarshaling to support both snake_case and camelCase keys.
+func (s *State) UnmarshalJSON(data []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	getString := func(keys ...string) string {
+		for _, k := range keys {
+			if v, ok := raw[k]; ok {
+				if str, ok := v.(string); ok {
+					return str
+				}
+			}
+		}
+		return ""
+	}
+
+	getInt := func(keys ...string) int {
+		for _, k := range keys {
+			if v, ok := raw[k]; ok {
+				if num, ok := v.(float64); ok {
+					return int(num)
+				}
+			}
+		}
+		return 0
+	}
+
+	getTime := func(keys ...string) time.Time {
+		str := getString(keys...)
+		if str == "" {
+			return time.Time{}
+		}
+		for _, layout := range []string{time.RFC3339, time.RFC3339Nano, "2006-01-02T15:04:05Z", "2006-01-02 15:04:05"} {
+			if t, err := time.Parse(layout, str); err == nil {
+				return t
+			}
+		}
+		return time.Time{}
+	}
+
+	s.Goal = getString("goal", "Goal")
+	s.Status = getString("status", "Status")
+	s.LastTask = getString("last_task", "lastTask", "LastTask")
+	s.LastCommit = getString("last_commit", "lastCommit", "LastCommit")
+	s.LastCheck = getString("last_check", "lastCheck", "LastCheck")
+	s.Iteration = getInt("iteration", "Iteration")
+	s.PID = getInt("pid", "PID")
+	s.StartedAt = getTime("started_at", "startedTime", "StartedAt", "startedAt")
+	s.UpdatedAt = getTime("updated_at", "updatedTime", "UpdatedAt", "updatedAt")
+
+	// Parse remaining queue if present
+	for _, k := range []string{"remaining_queue", "pending_files", "pendingFiles", "remainingTasks"} {
+		if v, ok := raw[k]; ok {
+			if list, ok := v.([]interface{}); ok {
+				var items []string
+				for _, item := range list {
+					if str, ok := item.(string); ok {
+						items = append(items, str)
+					}
+				}
+				s.RemainingQueue = items
+				break
+			}
+		}
+	}
+
+	return nil
 }
 
 // Manager handles reading and atomically persisting state.

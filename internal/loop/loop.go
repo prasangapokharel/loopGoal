@@ -244,6 +244,12 @@ func (e *Engine) runIteration(ctx context.Context, iter int) (bool, bool, error)
 			e.updateStatus(state.StatusBlocked)
 			return false, true, nil
 		}
+		if fixRes.GoalReached {
+			res.GoalReached = true
+		}
+		if fixRes.Task != "" {
+			res.Task = fixRes.Task
+		}
 	}
 
 	if !verifyPassed {

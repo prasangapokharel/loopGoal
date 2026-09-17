@@ -55,23 +55,36 @@ func DefaultConfig() *Config {
 	}
 }
 
+// DetectConfig returns a configuration tailored to the repository in projectDir.
+func DetectConfig(projectDir string, verifyCommands []string) *Config {
+	cfg := DefaultConfig()
+	if len(verifyCommands) > 0 {
+		cfg.Verify = verifyCommands
+	}
+	return cfg
+}
+
 // DefaultConfigYAML returns the formatted default YAML string.
 func DefaultConfigYAML() string {
-	return `# LoopGoal Configuration
-goal: >
-  Continuously improve this project with small,
-  safe, production-quality changes.
+	return FormatConfigYAML(DefaultConfig())
+}
 
-agent:
-  command: "codex"
-
-verify:
-  - "go test ./..."
-
-limits:
-  iterations: 20
-  max_retries: 3
-`
+// FormatConfigYAML converts a Config into formatted YAML.
+func FormatConfigYAML(cfg *Config) string {
+	var sb strings.Builder
+	sb.WriteString("# LoopGoal Configuration\n")
+	sb.WriteString("goal: >\n")
+	for _, line := range strings.Split(strings.TrimSpace(cfg.Goal), "\n") {
+		sb.WriteString("  " + strings.TrimSpace(line) + "\n")
+	}
+	sb.WriteString("\nagent:\n")
+	sb.WriteString(fmt.Sprintf("  command: %q\n", cfg.Agent.Command))
+	sb.WriteString("\nverify:\n")
+	for _, v := range cfg.Verify {
+		sb.WriteString(fmt.Sprintf("  - %q\n", v))
+	}
+	sb.WriteString(fmt.Sprintf("\nlimits:\n  iterations: %d\n  max_retries: %d\n", cfg.Limits.Iterations, cfg.Limits.MaxRetries))
+	return sb.String()
 }
 
 // Load reads and parses a YAML configuration file from the given path.

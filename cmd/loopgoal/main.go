@@ -14,6 +14,7 @@ import (
 
 	"loopgoal/internal/agent"
 	"loopgoal/internal/config"
+	"loopgoal/internal/detect"
 	"loopgoal/internal/git"
 	"loopgoal/internal/loop"
 	"loopgoal/internal/state"
@@ -90,8 +91,12 @@ func runInit(args []string) error {
 		return fmt.Errorf("creating directory %s: %w", loopDir, err)
 	}
 
-	// Write default config
-	if err := os.WriteFile(cfgPath, []byte(config.DefaultConfigYAML()), 0o644); err != nil {
+	// Auto-detect project type and suggested verification commands
+	detected := detect.Detect(*dir)
+	initialConfig := config.DetectConfig(*dir, detected.VerifyCommands)
+
+	// Write config
+	if err := os.WriteFile(cfgPath, []byte(config.FormatConfigYAML(initialConfig)), 0o644); err != nil {
 		return fmt.Errorf("writing config file: %w", err)
 	}
 
@@ -110,7 +115,7 @@ func runInit(args []string) error {
 		return fmt.Errorf("initializing state file: %w", err)
 	}
 
-	fmt.Printf("✓ Initialized LoopGoal in %s\n", loopDir)
+	fmt.Printf("✓ Initialized LoopGoal in %s (%s)\n", loopDir, detected.Description)
 	fmt.Printf("  Config: %s\n", cfgPath)
 	fmt.Printf("  State:  %s\n", statePath)
 	return nil

@@ -165,15 +165,26 @@ verify:
 loopgoal/
 ├── cmd/
 │   └── loopgoal/
-│       ├── main.go            # CLI entrypoint (init, run, status, stop)
-│       └── main_test.go       # CLI integration tests
+│       └── main.go            # CLI entrypoint (thin binary wrapper)
 ├── internal/
-│   ├── config/                # YAML configuration parser & validation
-│   ├── state/                 # State persistence (.loopgoal/state.json)
-│   ├── git/                   # Git operations wrapper & diff safety
-│   ├── verify/                # Project-agnostic verification runner
 │   ├── agent/                 # Agent interface & CommandAgent adapter
-│   └── loop/                  # Autonomous supervisor loop engine
+│   ├── cli/                   # CLI command dispatcher (init, run, status, stop)
+│   ├── config/                # YAML configuration parser & validation
+│   ├── detect/                # Smart project stack autodetection
+│   ├── git/                   # Git operations wrapper & diff safety
+│   ├── loop/                  # Autonomous supervisor loop engine
+│   ├── state/                 # State persistence (.loopgoal/state.json)
+│   └── verify/                # Project-agnostic verification runner
+├── tests/
+│   ├── agent/                 # Agent adapter unit tests
+│   ├── cli/                   # CLI integration tests
+│   ├── config/                # Configuration unit tests
+│   ├── detect/                # Stack autodetection tests
+│   ├── e2e/                   # Multi-stack E2E workflow tests
+│   ├── git/                   # Git isolation & commit safety tests
+│   ├── loop/                  # Autonomous loop engine tests
+│   ├── state/                 # State persistence tests
+│   └── verify/                # Verification runner tests
 ├── skill/
 │   ├── SKILL.md               # Universal LoopGoal agent skill
 │   └── loopgoal.md            # Deep protocol reference

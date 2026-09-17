@@ -88,6 +88,11 @@ var (
 	reTask        = regexp.MustCompile(`(?i)(?:[-*]\s*)?(?:change(?:s)?\s*(?:made)?|task|summary)\s*[:=]\s*(.+)`)
 )
 
+// ParseAgentOutput extracts completion signals, task summaries, and flags from agent output.
+func ParseAgentOutput(output string) Result {
+	return parseAgentOutput(output)
+}
+
 func parseAgentOutput(output string) Result {
 	res := Result{
 		Output: output,

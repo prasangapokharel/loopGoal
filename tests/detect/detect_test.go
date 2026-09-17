@@ -1,16 +1,18 @@
-package detect
+package detect_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"loopgoal/internal/detect"
 )
 
 func TestDetectGoProject(t *testing.T) {
 	dir := t.TempDir()
 	_ = os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module testmod\n"), 0o644)
 
-	info := Detect(dir)
+	info := detect.Detect(dir)
 	if info.Type != "go" {
 		t.Errorf("expected type 'go', got %q", info.Type)
 	}
@@ -31,7 +33,7 @@ func TestDetectNodeProject(t *testing.T) {
 	}`
 	_ = os.WriteFile(filepath.Join(dir, "package.json"), []byte(pkgJSON), 0o644)
 
-	info := Detect(dir)
+	info := detect.Detect(dir)
 	if info.Type != "node" {
 		t.Errorf("expected type 'node', got %q", info.Type)
 	}
@@ -47,7 +49,7 @@ func TestDetectRustProject(t *testing.T) {
 	dir := t.TempDir()
 	_ = os.WriteFile(filepath.Join(dir, "Cargo.toml"), []byte("[package]\nname = \"test\"\n"), 0o644)
 
-	info := Detect(dir)
+	info := detect.Detect(dir)
 	if info.Type != "rust" {
 		t.Errorf("expected type 'rust', got %q", info.Type)
 	}
@@ -60,7 +62,7 @@ func TestDetectPythonProject(t *testing.T) {
 	dir := t.TempDir()
 	_ = os.WriteFile(filepath.Join(dir, "pyproject.toml"), []byte("[tool.pytest]\n"), 0o644)
 
-	info := Detect(dir)
+	info := detect.Detect(dir)
 	if info.Type != "python" {
 		t.Errorf("expected type 'python', got %q", info.Type)
 	}
@@ -71,7 +73,7 @@ func TestDetectPythonProject(t *testing.T) {
 
 func TestDetectGenericFallback(t *testing.T) {
 	dir := t.TempDir()
-	info := Detect(dir)
+	info := detect.Detect(dir)
 	if info.Type != "generic" {
 		t.Errorf("expected type 'generic', got %q", info.Type)
 	}

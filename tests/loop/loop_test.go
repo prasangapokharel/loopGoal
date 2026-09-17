@@ -1,4 +1,4 @@
-package loop
+package loop_test
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	"loopgoal/internal/agent"
 	"loopgoal/internal/config"
 	"loopgoal/internal/git"
+	"loopgoal/internal/loop"
 	"loopgoal/internal/state"
 	"loopgoal/internal/verify"
 )
@@ -103,7 +104,7 @@ func TestLoopRunSuccessfulIterations(t *testing.T) {
 	}
 
 	var logBuf bytes.Buffer
-	engine, err := NewEngine(Options{
+	engine, err := loop.NewEngine(loop.Options{
 		WorkDir:  dir,
 		Config:   cfg,
 		StateMgr: state.NewManager(statePath),
@@ -187,7 +188,7 @@ func TestLoopVerificationFailureAndRetry(t *testing.T) {
 	}
 
 	var logBuf bytes.Buffer
-	engine, err := NewEngine(Options{
+	engine, err := loop.NewEngine(loop.Options{
 		WorkDir:  dir,
 		Config:   cfg,
 		StateMgr: state.NewManager(statePath),
@@ -255,7 +256,7 @@ func TestLoopPreservesPreExistingUserChanges(t *testing.T) {
 	}
 
 	var logBuf bytes.Buffer
-	engine, err := NewEngine(Options{
+	engine, err := loop.NewEngine(loop.Options{
 		WorkDir:  dir,
 		Config:   cfg,
 		StateMgr: state.NewManager(statePath),

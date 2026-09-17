@@ -1,4 +1,4 @@
-package main
+package cli_test
 
 import (
 	"os"
@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"loopgoal/internal/cli"
 )
 
 func setupTestGitProject(t *testing.T) string {
@@ -44,28 +46,28 @@ func TestCLIInitAndStatus(t *testing.T) {
 	dir := setupTestGitProject(t)
 
 	// Test init
-	if err := runInit([]string{"-dir", dir}); err != nil {
-		t.Fatalf("runInit failed: %v", err)
+	if err := cli.RunInit([]string{"-dir", dir}); err != nil {
+		t.Fatalf("RunInit failed: %v", err)
 	}
 
 	// Re-init without force should fail
-	if err := runInit([]string{"-dir", dir}); err == nil {
+	if err := cli.RunInit([]string{"-dir", dir}); err == nil {
 		t.Fatal("expected error on re-init without --force, got nil")
 	}
 
 	// Re-init with force should succeed
-	if err := runInit([]string{"-dir", dir, "-force"}); err != nil {
-		t.Fatalf("runInit with -force failed: %v", err)
+	if err := cli.RunInit([]string{"-dir", dir, "-force"}); err != nil {
+		t.Fatalf("RunInit with -force failed: %v", err)
 	}
 
 	// Test status
-	if err := runStatus([]string{"-dir", dir}); err != nil {
-		t.Fatalf("runStatus failed: %v", err)
+	if err := cli.RunStatus([]string{"-dir", dir}); err != nil {
+		t.Fatalf("RunStatus failed: %v", err)
 	}
 
 	// Test stop (when not running)
-	if err := runStop([]string{"-dir", dir}); err != nil {
-		t.Fatalf("runStop failed: %v", err)
+	if err := cli.RunStop([]string{"-dir", dir}); err != nil {
+		t.Fatalf("RunStop failed: %v", err)
 	}
 }
 
@@ -73,8 +75,8 @@ func TestCLIRunWithMockScript(t *testing.T) {
 	dir := setupTestGitProject(t)
 
 	// Run init
-	if err := runInit([]string{"-dir", dir}); err != nil {
-		t.Fatalf("runInit failed: %v", err)
+	if err := cli.RunInit([]string{"-dir", dir}); err != nil {
+		t.Fatalf("RunInit failed: %v", err)
 	}
 
 	// Write mock agent script
@@ -104,8 +106,8 @@ limits:
 	}
 
 	// Run loop
-	if err := runLoop([]string{"-dir", dir}); err != nil {
-		t.Fatalf("runLoop failed: %v", err)
+	if err := cli.RunLoop([]string{"-dir", dir}); err != nil {
+		t.Fatalf("RunLoop failed: %v", err)
 	}
 
 	// Check git log
@@ -117,5 +119,19 @@ limits:
 	}
 	if !strings.Contains(string(out), "added code to main.go") {
 		t.Errorf("expected commit message to contain task, got: %s", string(out))
+	}
+}
+
+func TestCLIExecuteHelpAndErrors(t *testing.T) {
+	if err := cli.Execute([]string{"help"}); err != nil {
+		t.Errorf("unexpected error on help: %v", err)
+	}
+
+	if err := cli.Execute([]string{}); err == nil {
+		t.Error("expected error with no arguments, got nil")
+	}
+
+	if err := cli.Execute([]string{"unknowncommand"}); err == nil {
+		t.Error("expected error on unknown command, got nil")
 	}
 }

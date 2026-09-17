@@ -1,13 +1,15 @@
-package verify
+package verify_test
 
 import (
 	"context"
 	"testing"
+
+	"loopgoal/internal/verify"
 )
 
 func TestVerifyRunnerSuccess(t *testing.T) {
 	ctx := context.Background()
-	runner := NewRunner(t.TempDir())
+	runner := verify.NewRunner(t.TempDir())
 
 	commands := []string{
 		"echo 'check 1'",
@@ -31,7 +33,7 @@ func TestVerifyRunnerSuccess(t *testing.T) {
 
 func TestVerifyRunnerFailure(t *testing.T) {
 	ctx := context.Background()
-	runner := NewRunner(t.TempDir())
+	runner := verify.NewRunner(t.TempDir())
 
 	commands := []string{
 		"echo 'step 1'",

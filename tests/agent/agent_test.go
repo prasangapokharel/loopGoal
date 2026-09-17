@@ -1,14 +1,15 @@
-package agent
+package agent_test
 
 import (
 	"context"
 	"testing"
+
+	"loopgoal/internal/agent"
 )
 
 func TestCommandAgentExecution(t *testing.T) {
 	ctx := context.Background()
-	// Test echo command reading from stdin
-	ca := NewCommandAgent("cat", nil, t.TempDir())
+	ca := agent.NewCommandAgent("cat", nil, t.TempDir())
 
 	res, err := ca.Run(ctx, "Hello from LoopGoal!\n- Change made: extracted validation helper\nGoal reached: no\n")
 	if err != nil {
@@ -28,7 +29,7 @@ func TestCommandAgentExecution(t *testing.T) {
 
 func TestCommandAgentGoalReachedAndBlocked(t *testing.T) {
 	outputGoal := "Everything done.\n- task: final cleanup\ngoal reached: yes"
-	res := parseAgentOutput(outputGoal)
+	res := agent.ParseAgentOutput(outputGoal)
 	if !res.GoalReached {
 		t.Error("expected GoalReached to be true")
 	}
@@ -37,7 +38,7 @@ func TestCommandAgentGoalReachedAndBlocked(t *testing.T) {
 	}
 
 	outputBlocked := "Unable to progress.\nStatus: blocked"
-	resBlocked := parseAgentOutput(outputBlocked)
+	resBlocked := agent.ParseAgentOutput(outputBlocked)
 	if !resBlocked.Blocked {
 		t.Error("expected Blocked to be true")
 	}
@@ -45,7 +46,7 @@ func TestCommandAgentGoalReachedAndBlocked(t *testing.T) {
 
 func TestCommandAgentPlaceholder(t *testing.T) {
 	ctx := context.Background()
-	ca := NewCommandAgent("echo", []string{"received: {task}"}, t.TempDir())
+	ca := agent.NewCommandAgent("echo", []string{"received: {task}"}, t.TempDir())
 
 	res, err := ca.Run(ctx, "sample task prompt")
 	if err != nil {

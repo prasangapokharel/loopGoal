@@ -1,21 +1,23 @@
-package config
+package config_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"loopgoal/internal/config"
 )
 
 func TestDefaultConfig(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := config.DefaultConfig()
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("expected valid default config, got: %v", err)
 	}
-	if cfg.Limits.Iterations != DefaultIterations {
-		t.Errorf("expected iterations %d, got %d", DefaultIterations, cfg.Limits.Iterations)
+	if cfg.Limits.Iterations != config.DefaultIterations {
+		t.Errorf("expected iterations %d, got %d", config.DefaultIterations, cfg.Limits.Iterations)
 	}
-	if cfg.Limits.MaxRetries != DefaultMaxRetries {
-		t.Errorf("expected max_retries %d, got %d", DefaultMaxRetries, cfg.Limits.MaxRetries)
+	if cfg.Limits.MaxRetries != config.DefaultMaxRetries {
+		t.Errorf("expected max_retries %d, got %d", config.DefaultMaxRetries, cfg.Limits.MaxRetries)
 	}
 }
 
@@ -23,17 +25,17 @@ func TestLoadAndSave(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, ".loopgoal", "config.yaml")
 
-	original := DefaultConfig()
+	original := config.DefaultConfig()
 	original.Goal = "Custom Goal"
 	original.Agent.Command = "test-agent"
 	original.Verify = []string{"npm test"}
 	original.Limits.Iterations = 10
 
-	if err := Save(configPath, original); err != nil {
+	if err := config.Save(configPath, original); err != nil {
 		t.Fatalf("failed to save config: %v", err)
 	}
 
-	loaded, err := Load(configPath)
+	loaded, err := config.Load(configPath)
 	if err != nil {
 		t.Fatalf("failed to load config: %v", err)
 	}
@@ -53,7 +55,7 @@ func TestLoadAndSave(t *testing.T) {
 }
 
 func TestValidateEmptyFields(t *testing.T) {
-	cfg := &Config{}
+	cfg := &config.Config{}
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("expected error on empty config, got nil")
 	}
@@ -70,7 +72,7 @@ func TestValidateEmptyFields(t *testing.T) {
 }
 
 func TestLoadNotFound(t *testing.T) {
-	_, err := Load(filepath.Join(os.TempDir(), "nonexistent_file_12345.yaml"))
+	_, err := config.Load(filepath.Join(os.TempDir(), "nonexistent_file_12345.yaml"))
 	if err == nil {
 		t.Fatal("expected error loading non-existent file, got nil")
 	}

@@ -1,4 +1,4 @@
-package git
+package git_test
 
 import (
 	"context"
@@ -6,9 +6,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+
+	"loopgoal/internal/git"
 )
 
-func setupTestRepo(t *testing.T) (string, *Git) {
+func setupTestRepo(t *testing.T) (string, *git.Git) {
 	t.Helper()
 	tmpDir := t.TempDir()
 
@@ -32,7 +34,7 @@ func setupTestRepo(t *testing.T) (string, *Git) {
 		}
 	}
 
-	g := New(tmpDir)
+	g := git.New(tmpDir)
 	return tmpDir, g
 }
 
@@ -48,7 +50,7 @@ func TestGitIsRepo(t *testing.T) {
 		t.Fatal("expected IsRepo to be true")
 	}
 
-	nonRepo := New(t.TempDir())
+	nonRepo := git.New(t.TempDir())
 	isRepo, err = nonRepo.IsRepo(ctx)
 	if err != nil {
 		t.Fatalf("IsRepo on non-repo returned error: %v", err)
@@ -82,7 +84,7 @@ func TestGitWorkflow(t *testing.T) {
 	}
 
 	// Snapshot before iteration
-	// Say pre-existing dirty file exists
+	// Pre-existing dirty file exists
 	preExistingFile := filepath.Join(tmpDir, "unrelated.txt")
 	if err := os.WriteFile(preExistingFile, []byte("user notes\n"), 0o644); err != nil {
 		t.Fatalf("failed to write pre-existing file: %v", err)

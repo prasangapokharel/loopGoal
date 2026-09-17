@@ -12,40 +12,38 @@ LoopGoal is a local-first autonomous development supervisor for AI coding agents
 
 The fundamental loop is:
 ```text
-Observe → Audit Rules & Skills → Build Scope Matrix → Refactor File → Verify → Commit → Save State → Next File → Repeat
+Observe & Command Audit → Build Scope Matrix → Refactor File → Empirical Shell Verification → Review Diff → Commit → Next File → Repeat
 ```
 
-LoopGoal is **100% generic, project-agnostic, and rule-driven**. It works across any language, framework, or architecture (Go, Python, TypeScript, Rust, Java, C++, Monorepos, etc.).
+LoopGoal is **100% generic, project-agnostic, and command-driven**. It works across any language, framework, or architecture (Go, Python, TypeScript, Rust, Java, C++, Monorepos, etc.).
 
 ---
 
-## DEEP RULE COMPLIANCE & ZERO-PREMATURE-STOP PROTOCOL
+## EMPIRICAL COMMAND AUDITING & DEEP GREP PROTOCOL
 
-### 1. Rule & Skill Discovery Phase (Iteration 1)
-When the user invokes `/loopgoal [goal]`, the agent MUST immediately perform a comprehensive project audit:
-1. **Discover all project rules and skill guidelines**:
-   - `.agents/rules/*.md` and `.agents/skills/*/SKILL.md`
-   - `.cursor/rules/*.mdc` (Cursor rule files)
-   - `.opencode/skills/` and `.claude/` / `CLAUDE.md`
-   - `AGENTS.md` and `GEMINI.md`
-2. **Read and extract all mandatory standards**:
-   - Naming conventions (filenames, variable casing, module structures).
-   - Architectural patterns (layer separation, error handling, typing/docstrings).
-   - Code quality, linter rules, and testing standards.
-3. **Discover 100% of Target Files**:
-   - Scan every single file inside the target directory or module scope.
-   - Do NOT skip any files.
-4. **Construct the Full Task Matrix in `.loopgoal/state.json`**:
-   Save the goal, full file list, and iteration status:
+### 1. Empirical Shell & Grep File Discovery (Iteration 1)
+When the user invokes `/loopgoal [goal]`, the agent MUST NOT guess or assume file lists. It MUST use shell commands and search tools to establish 100% complete empirical baselines:
+1. **Discover all target files empirically**:
+   - Run shell commands or directory listings (`git ls-files <target_dir>`, `find <target_dir> -type f`, etc.).
+   - Ensure zero files are missed in the target scope.
+2. **Audit Rule & Skill Standards**:
+   - Discover `.cursor/rules/*.mdc`, `.agents/rules/*.md`, `.agents/skills/*/SKILL.md`, `AGENTS.md`, `GEMINI.md`, etc.
+3. **Run Deep Grep & Static Analysis Audits**:
+   - Use `grep` / `ripgrep` to search for non-compliant patterns across all files:
+     - Non-compliant variable / function casing (e.g. camelCase vs snake_case).
+     - Deprecated API usage or missing type annotations.
+     - Unhandled error cases or missing logging/docstrings.
+   - Run configured linters and checkers (e.g. `ruff check`, `mypy`, `golangci-lint`, `eslint`, `tsc --noEmit`, `cargo clippy`).
+4. **Construct the Task Matrix in `.loopgoal/state.json`**:
+   Save the full file queue, rules applied, and baseline check status:
    ```json
    {
      "goal": "<user_defined_goal>",
      "iteration": 1,
      "status": "running",
      "rules_applied": [
-       ".cursor/rules/coding-standard.mdc",
-       ".agents/skills/project-style/SKILL.md",
-       "AGENTS.md"
+       ".cursor/rules/*.mdc",
+       ".agents/rules/*.md"
      ],
      "remaining_queue": [
        "path/to/file_1.ext",
@@ -59,8 +57,8 @@ When the user invokes `/loopgoal [goal]`, the agent MUST immediately perform a c
 
 ---
 
-### 2. Zero-Premature-Stop Guarantee
-- **DO NOT STOP after 1 file**: Processing one file is ONE iteration. You must NOT set `"status": "completed"` or `"status": "goal_reached"` until **100% of target files** in `"remaining_queue"` are audited, refactored, verified, and committed.
+### 2. Zero-Premature-Stop & Continuous Execution
+- **DO NOT STOP after 1 file**: Processing one file is ONE iteration. You must NOT set `"status": "completed"` or `"status": "goal_reached"` until **100% of target files** in `"remaining_queue"` are audited, refactored, verified via shell commands, and committed.
 - **DO NOT END YOUR TURN**: In chat-based agent environments (Antigravity, Claude Code, etc.), do NOT stop tool execution after a single file to ask the user. Immediately call tools on the next file (`Iteration 2: Inspecting path/to/file_2.ext...`) in the same turn!
 - Keep `"status": "running"` in `.loopgoal/state.json` until `"remaining_queue"` is completely empty (`[]`).
 
@@ -70,8 +68,8 @@ When the user invokes `/loopgoal [goal]`, the agent MUST immediately perform a c
 
 1. **`/loopgoal <goal>`**:
    Starts the autonomous loop toward the specified goal.
-   - Automatically scans project rules/skills (`.cursor/rules/*.mdc`, `.agents/`, `AGENTS.md`, etc.).
-   - Builds the full file list for the target directory.
+   - Executes empirical discovery (`git ls-files`, `find`, `grep`).
+   - Audits project rules/skills (`.cursor/rules/*.mdc`, `.agents/`, `AGENTS.md`, etc.).
    - Configures verification commands (`pytest`, `ruff check`, `go test ./...`, `npm test`, etc.).
 
 2. **`/loopgoal`**:
@@ -102,20 +100,21 @@ When the user invokes `/loopgoal [goal]`, the agent MUST immediately perform a c
 
 For EVERY file in `"remaining_queue"`, follow this strict 7-step sequence:
 
-### Step 1: Observe & Audit Target File
+### Step 1: Observe & Audit Target File via Commands & Grep
 - Take the top file from `"remaining_queue"`.
-- Audit its filename, imports, functions, type signatures, error handling, and formatting against the project's discovered rules (`.cursor/rules/*.mdc`, `AGENTS.md`, etc.).
-- Identify all discrepancies needing refactoring.
+- Use `grep` / `ripgrep` or code search to inspect its functions, imports, type signatures, error handling, and formatting against discovered rules (`.cursor/rules/*.mdc`, `AGENTS.md`, etc.).
+- Identify all non-compliant lines needing refactoring.
 
 ### Step 2: Implement Bounded Refactoring
-- Refactor **only** the selected file to achieving 100% compliance with project rules and skills.
+- Refactor **only** the selected file to achieve 100% compliance with project rules and skills.
 - Rename files/classes/functions if required by project standards.
 - Do NOT touch unrelated files in the same iteration.
 
-### Step 3: Run Verification
-- Execute project verification commands (e.g., `pytest`, `ruff check`, `go test ./...`, `npm test`, `golangci-lint`).
+### Step 3: Run Empirical Verification Commands
+- Execute project verification shell commands (e.g., `pytest`, `ruff check`, `go test ./...`, `npm test`, `tsc --noEmit`, `golangci-lint`).
+- Base success strictly on empirical command logs and zero-exit codes.
 - If verification fails:
-  - Analyze error output.
+  - Analyze exact error log output.
   - Fix issues in the file immediately.
   - Re-run verification until it passes (up to 3 attempts).
   - NEVER commit changes when verification is failing.
@@ -140,7 +139,7 @@ For EVERY file in `"remaining_queue"`, follow this strict 7-step sequence:
   - `status`: `"running"` (unless `"remaining_queue"` is empty)
   - `last_task`: summary of change
   - `last_commit`: short git hash
-  - `last_check`: verification output
+  - `last_check`: empirical verification output log summary
   - `remaining_queue`: updated list of pending files
   - `completed_files`: list of completed files
 

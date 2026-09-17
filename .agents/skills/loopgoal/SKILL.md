@@ -12,66 +12,74 @@ LoopGoal is a local-first autonomous development supervisor for AI coding agents
 
 The fundamental loop is:
 ```text
-Observe → Select ONE Item → Implement → Verify → Review Diff → Commit → Save State → Continue to Next Item → Repeat
+Observe → Audit Rules & Skills → Build Scope Matrix → Refactor File → Verify → Commit → Save State → Next File → Repeat
 ```
 
-LoopGoal is **100% generic and project-agnostic**. It works identically across any language, framework, or architecture (Go, Python, TypeScript, Rust, Java, C++, Monorepos, etc.).
+LoopGoal is **100% generic, project-agnostic, and rule-driven**. It works across any language, framework, or architecture (Go, Python, TypeScript, Rust, Java, C++, Monorepos, etc.).
 
 ---
 
-## Dynamic Multi-Item & Continuous Execution Protocol
+## DEEP RULE COMPLIANCE & ZERO-PREMATURE-STOP PROTOCOL
 
-### 1. Dynamic Scope Discovery
-When a user provides a goal targeting a module, directory, feature, or broad objective:
-1. **Dynamically inspect the repository**: Use file listing, directory inspection, or git status to discover the relevant candidate files, functions, or tasks.
-2. **Formulate a dynamic task queue**: Keep track of the remaining items that need attention to fully achieve the goal.
-3. Save or update the remaining items in `.loopgoal/state.json` under `"remaining_queue"`:
+### 1. Rule & Skill Discovery Phase (Iteration 1)
+When the user invokes `/loopgoal [goal]`, the agent MUST immediately perform a comprehensive project audit:
+1. **Discover all project rules and skill guidelines**:
+   - `.agents/rules/*.md` and `.agents/skills/*/SKILL.md`
+   - `.cursor/rules/*.mdc` (Cursor rule files)
+   - `.opencode/skills/` and `.claude/` / `CLAUDE.md`
+   - `AGENTS.md` and `GEMINI.md`
+2. **Read and extract all mandatory standards**:
+   - Naming conventions (filenames, variable casing, module structures).
+   - Architectural patterns (layer separation, error handling, typing/docstrings).
+   - Code quality, linter rules, and testing standards.
+3. **Discover 100% of Target Files**:
+   - Scan every single file inside the target directory or module scope.
+   - Do NOT skip any files.
+4. **Construct the Full Task Matrix in `.loopgoal/state.json`**:
+   Save the goal, full file list, and iteration status:
    ```json
    {
      "goal": "<user_defined_goal>",
      "iteration": 1,
      "status": "running",
-     "last_task": "<concise_summary_of_improvement>",
-     "last_commit": "<git_commit_hash>",
-     "last_check": "passed: <configured_verification_command>",
+     "rules_applied": [
+       ".cursor/rules/coding-standard.mdc",
+       ".agents/skills/project-style/SKILL.md",
+       "AGENTS.md"
+     ],
      "remaining_queue": [
-       "<path/to/pending_item_2>",
-       "<path/to/pending_item_3>",
-       "<path/to/pending_item_4>"
-     ]
+       "path/to/file_1.ext",
+       "path/to/file_2.ext",
+       "path/to/file_3.ext",
+       "path/to/file_N.ext"
+     ],
+     "completed_files": []
    }
    ```
 
-### 2. Never Stop Prematurely
-- **DO NOT** stop after completing only one file or subtask if more items in the goal scope remain pending.
-- **DO NOT** set `"status": "completed"` or `"status": "goal_reached"` until all items required by the goal are processed and verified.
-- Keep `"status": "running"` in `.loopgoal/state.json` while items remain in `"remaining_queue"`.
+---
 
-### 3. Continuous Autonomous Progression
-- In conversational / chat-based agents, do NOT end your response after finishing a single bounded task and wait for the user to tell you to continue.
-- Immediately proceed to the next item:
-  - Iteration 1: Process first bounded item → Verify → Commit.
-  - Iteration 2: Process next item from queue → Verify → Commit.
-  - Iteration 3: Process next item from queue → Verify → Commit.
-  - Continue until all items in scope are completed or the configured iteration limit is reached.
+### 2. Zero-Premature-Stop Guarantee
+- **DO NOT STOP after 1 file**: Processing one file is ONE iteration. You must NOT set `"status": "completed"` or `"status": "goal_reached"` until **100% of target files** in `"remaining_queue"` are audited, refactored, verified, and committed.
+- **DO NOT END YOUR TURN**: In chat-based agent environments (Antigravity, Claude Code, etc.), do NOT stop tool execution after a single file to ask the user. Immediately call tools on the next file (`Iteration 2: Inspecting path/to/file_2.ext...`) in the same turn!
+- Keep `"status": "running"` in `.loopgoal/state.json` until `"remaining_queue"` is completely empty (`[]`).
 
 ---
 
 ## Slash Commands & Arguments
 
-When the user types `/loopgoal`, determine the mode:
-
 1. **`/loopgoal <goal>`**:
-   Starts the autonomous loop toward the specified `<goal>`.
-   - If `.loopgoal/config.yaml` exists, use its configured verification commands.
-   - If `.loopgoal/config.yaml` does not exist, dynamically detect project test commands (e.g., via `package.json`, `go.mod`, `Cargo.toml`, `pyproject.toml`, Makefile) and initialize `.loopgoal/`.
+   Starts the autonomous loop toward the specified goal.
+   - Automatically scans project rules/skills (`.cursor/rules/*.mdc`, `.agents/`, `AGENTS.md`, etc.).
+   - Builds the full file list for the target directory.
+   - Configures verification commands (`pytest`, `ruff check`, `go test ./...`, `npm test`, etc.).
 
 2. **`/loopgoal`**:
-   Starts or resumes the autonomous loop using the persistent goal in `.loopgoal/config.yaml` and `.loopgoal/state.json`.
-   - If items remain in `"remaining_queue"`, resume with the next pending item!
+   Starts or resumes the autonomous loop using `.loopgoal/config.yaml` and `.loopgoal/state.json`.
+   - If items remain in `"remaining_queue"`, resumes directly with the next pending file!
 
 3. **`/loopgoal status`**:
-   Reads `.loopgoal/state.json` and prints the current status report:
+   Displays current status, iteration count, last commit, verification status, and remaining queue:
    ```text
    LoopGoal Status
    ────────────────────────────
@@ -81,66 +89,64 @@ When the user types `/loopgoal`, determine the mode:
    Last task:   <summary_of_last_change>
    Last commit: <git_commit_hash>
    Last check:  <passed | failed>
-   Remaining:   <list of items still in queue>
+   Completed:   <count> files
+   Remaining:   <list of files left in queue>
    ```
 
 4. **`/loopgoal stop`**:
-   Gracefully stops the autonomous loop.
-   - Updates `.loopgoal/state.json` with `"status": "stopped"`.
-   - Halts further iterations safely.
+   Gracefully halts the autonomous loop. Writes `"status": "stopped"` to `.loopgoal/state.json`.
 
 ---
 
-## The Iteration Cycle
+## The Iteration Cycle (File by File)
 
-In each iteration, you MUST follow this strict sequence:
+For EVERY file in `"remaining_queue"`, follow this strict 7-step sequence:
 
-### 1. Observe & Select Next Item
-- Check current Git status: `git status`.
-- Ensure pre-existing uncommitted user files are never touched or staged.
-- Check `"remaining_queue"` and select the **next single bounded item**.
+### Step 1: Observe & Audit Target File
+- Take the top file from `"remaining_queue"`.
+- Audit its filename, imports, functions, type signatures, error handling, and formatting against the project's discovered rules (`.cursor/rules/*.mdc`, `AGENTS.md`, etc.).
+- Identify all discrepancies needing refactoring.
 
-### 2. Implement
-- Implement **only** the selected item/improvement.
-- Preserve existing project architecture and conventions.
-- Do not make unnecessary changes in unrelated files.
+### Step 2: Implement Bounded Refactoring
+- Refactor **only** the selected file to achieving 100% compliance with project rules and skills.
+- Rename files/classes/functions if required by project standards.
+- Do NOT touch unrelated files in the same iteration.
 
-### 3. Verify
-- Run the configured verification commands (e.g., from `.loopgoal/config.yaml` or detected project tests).
+### Step 3: Run Verification
+- Execute project verification commands (e.g., `pytest`, `ruff check`, `go test ./...`, `npm test`, `golangci-lint`).
 - If verification fails:
-  - Analyze the error output.
-  - Fix the issue immediately in the active item.
+  - Analyze error output.
+  - Fix issues in the file immediately.
   - Re-run verification until it passes (up to 3 attempts).
-  - If it cannot be fixed cleanly, mark status as `blocked`.
-  - **NEVER** commit changes while verification is failing.
+  - NEVER commit changes when verification is failing.
 
-### 4. Review Diff
-- Inspect `git diff` and `git status`.
-- Ensure only files relevant to the current bounded improvement were touched.
-- Ensure pre-existing uncommitted user files are untouched.
+### Step 4: Review Diff
+- Run `git diff` and `git status`.
+- Ensure pre-existing uncommitted developer work is untouched.
+- Ensure diff is minimal, clean, and isolated to the target file.
 
-### 5. Commit
-- Stage only the relevant changed files: `git add <file...>`
-- Commit with a clear, conventional commit message:
+### Step 5: Stage & Commit
+- Stage the changed file: `git add <file>`
+- Commit with a clear conventional commit message:
   ```bash
-  git commit -m "<type>(<scope>): <concise description>"
+  git commit -m "<type>(<scope>): <concise description matching rules>"
   ```
-- Record the new commit hash.
 - **NEVER** run `git push`.
 
-### 6. Save State & Update Queue
+### Step 6: Update State & Queue
+- Remove the processed file from `"remaining_queue"` and append it to `"completed_files"`.
 - Update `.loopgoal/state.json`:
   - `iteration`: incremented count
-  - `status`: `"running"` (unless queue is empty)
-  - `last_task`: concise summary of what was done
+  - `status`: `"running"` (unless `"remaining_queue"` is empty)
+  - `last_task`: summary of change
   - `last_commit`: short git hash
-  - `last_check`: verification outcome
-  - `remaining_queue`: updated list of items left to process
-  - `updated_at`: ISO timestamp
+  - `last_check`: verification output
+  - `remaining_queue`: updated list of pending files
+  - `completed_files`: list of completed files
 
-### 7. Repeat
-- **If items remain in `remaining_queue`**: IMMEDIATELY proceed to the next iteration without waiting for user input!
-- **If all items are done**: Set `"status": "completed"`, summarize all completed iterations, and complete.
+### Step 7: Continuous Progression
+- **If `"remaining_queue"` is not empty**: IMMEDIATELY proceed to Step 1 for the next file without waiting for user input.
+- **If `"remaining_queue"` is empty**: Set `"status": "goal_reached"`, print final summary of all refactored files, and finish.
 
 ---
 
@@ -153,4 +159,4 @@ In each iteration, you MUST follow this strict sequence:
   - The user requests `/loopgoal stop`.
   - Max iterations reached.
   - Verification fails repeatedly and cannot be resolved.
-  - Overall goal is reached and all scoped items are completed.
+  - All files in the target scope match 100% of project rules.

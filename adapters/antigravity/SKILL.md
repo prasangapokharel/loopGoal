@@ -8,59 +8,58 @@ description: >-
 
 # LoopGoal for Google Antigravity
 
-This skill teaches the Antigravity agent how to execute the LoopGoal autonomous development loop.
+This skill teaches the Antigravity agent how to execute the LoopGoal autonomous development loop across any codebase.
 
-## CRITICAL MULTI-FILE & CONTINUATION RULES
+## Dynamic Multi-Item & Continuous Execution Protocol
 
-### 1. Never Stop After Just One File!
-When a goal targets a directory, module, or broad objective (e.g., *"Refactor backend auth (backend/api/v1/auth/)"*):
-- **DO NOT** stop after completing one file (e.g., `mfa.py`).
-- **DO NOT** set `"status": "completed"` in `.loopgoal/state.json` when other files in the target scope remain untouched (`password.py`, `urls.py`, `serializers.py`, `views.py`, `auth.py`, `profile.py`).
-- Keep `"status": "running"` in `.loopgoal/state.json`.
-
-### 2. Maintain a Scope Queue
-In your first iteration:
-1. Scan all files within the goal's scope.
-2. List them in your notes and save them in `.loopgoal/state.json` under `"remaining_queue"`:
+### 1. Dynamic Scope Discovery
+When a user provides a goal targeting a module, directory, feature, or broad objective:
+1. **Dynamically inspect the repository**: Use file listing, directory inspection, or git status to discover the relevant candidate files, functions, or tasks.
+2. **Formulate a dynamic task queue**: Keep track of the remaining items that need attention to fully achieve the goal.
+3. Save or update the remaining items in `.loopgoal/state.json` under `"remaining_queue"`:
    ```json
    {
-     "goal": "Refactor backend auth",
+     "goal": "<user_defined_goal>",
      "iteration": 1,
      "status": "running",
-     "last_task": "Refactored mfa.py to match senior standards",
-     "last_commit": "fb2143db",
-     "last_check": "passed: pytest && ruff",
+     "last_task": "<concise_summary_of_improvement>",
+     "last_commit": "<git_commit_hash>",
+     "last_check": "passed: <configured_verification_command>",
      "remaining_queue": [
-       "backend/api/v1/auth/password.py",
-       "backend/api/v1/auth/urls.py",
-       "backend/api/v1/auth/serializers.py",
-       "backend/api/v1/auth/views.py",
-       "backend/api/v1/auth/profile.py",
-       "backend/api/v1/auth/auth.py"
+       "<path/to/pending_item_2>",
+       "<path/to/pending_item_3>",
+       "<path/to/pending_item_4>"
      ]
    }
    ```
-3. In each subsequent iteration, pick the **next file** from `"remaining_queue"`.
-4. Only when `"remaining_queue"` is empty may you set `"status": "completed"` or `"status": "goal_reached"`.
 
-### 3. Continuous Execution (No Premature Stopping)
-- In Antigravity chat, **do not stop your turn** after finishing 1 file and wait for user prompts.
-- Immediately start the next iteration tool calls (`Iteration 2: Inspecting password.py...`, `Iteration 3: Inspecting urls.py...`) until all files are refactored or an iteration limit is reached.
+### 2. Never Stop Prematurely
+- **DO NOT** stop after completing only one file or subtask if more items in the goal scope remain pending.
+- **DO NOT** set `"status": "completed"` or `"status": "goal_reached"` until all items required by the goal are processed and verified.
+- Keep `"status": "running"` in `.loopgoal/state.json` while items remain in `"remaining_queue"`.
+
+### 3. Continuous Autonomous Progression
+- In Antigravity chat, do NOT end your response after finishing a single bounded task and wait for the user to tell you to continue.
+- Immediately proceed to the next item:
+  - Iteration 1: Process first bounded item → Verify → Commit.
+  - Iteration 2: Process next item from queue → Verify → Commit.
+  - Iteration 3: Process next item from queue → Verify → Commit.
+  - Continue until all items in scope are completed or the configured iteration limit is reached.
 
 ## Slash Commands
 
 - `/loopgoal`: Start or resume the loop using `.loopgoal/config.yaml` and `.loopgoal/state.json`.
-- `/loopgoal <goal>`: Set/override the goal and begin multi-file iterations.
+- `/loopgoal <goal>`: Set/override the goal and begin multi-item iterations.
 - `/loopgoal status`: Display current state, iteration count, last commit, and remaining queue.
 - `/loopgoal stop`: Gracefully halt the autonomous loop.
 
 ## Workflow Per Iteration
 
-1. **Observe**: Run `git status`, check `remaining_queue`, and select the **next single file**.
-2. **Select**: Identify ONE small, valuable, bounded improvement on that file.
+1. **Observe**: Run `git status`, check `"remaining_queue"`, and select the **next single bounded item**.
+2. **Select**: Identify ONE small, valuable, bounded improvement on that item.
 3. **Implement**: Make clean, minimal code changes needed.
-4. **Verify**: Run verification commands from `.loopgoal/config.yaml` or project defaults (`pytest`, `ruff`, `npm test`, `go test ./...`).
+4. **Verify**: Run verification commands from `.loopgoal/config.yaml` or project defaults.
 5. **Review Diff**: Ensure only intended files were changed.
 6. **Commit**: Stage and commit locally with a conventional commit message. Never push.
-7. **Persist State**: Update `.loopgoal/state.json` (remove processed file from `remaining_queue`, keep `status: "running"`).
-8. **Repeat**: Immediately continue to the next file in `remaining_queue` until the queue is finished.
+7. **Persist State**: Update `.loopgoal/state.json` (remove processed item from `remaining_queue`, keep `status: "running"`).
+8. **Repeat**: Immediately continue to the next item in `remaining_queue` until the queue is finished.

@@ -83,6 +83,11 @@ Usage:
   npx loopgoal install       Install skills & rules for Antigravity, Claude, Codex, Cursor
   npx loopgoal init          Initialize .loopgoal configuration in current repository
   npx loopgoal run [goal]    Execute autonomous development loop
+  npx loopgoal verify        Execute project verification and generate commit token
+  npx loopgoal select <file> Lock a single target file for the current iteration
+  npx loopgoal hook install  Install Git hard enforcement hooks (pre-commit, pre-push)
+  npx loopgoal rollback      Restore working tree to clean state (discard unverified edits)
+  npx loopgoal mcp           Run Model Context Protocol (MCP) server over stdio
   npx loopgoal scan          Inspect and categorize repository inventory
   npx loopgoal plan          Display current task map, pending queue, and evidence
   npx loopgoal test          Execute pre-flight gate checks

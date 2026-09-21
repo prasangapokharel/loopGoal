@@ -25,6 +25,9 @@ type State struct {
 	Goal           string    `json:"goal"`
 	Iteration      int       `json:"iteration"`
 	Status         string    `json:"status"`
+	ActiveTarget   string    `json:"active_target,omitempty"`
+	VerifiedToken  string    `json:"verified_token,omitempty"`
+	RollbackCount  int       `json:"rollback_count,omitempty"`
 	LastTask       string    `json:"last_task"`
 	LastCommit     string    `json:"last_commit"`
 	LastCheck      string    `json:"last_check,omitempty"`
@@ -78,6 +81,9 @@ func (s *State) UnmarshalJSON(data []byte) error {
 
 	s.Goal = getString("goal", "Goal")
 	s.Status = getString("status", "Status")
+	s.ActiveTarget = getString("active_target", "activeTarget", "ActiveTarget")
+	s.VerifiedToken = getString("verified_token", "verifiedToken", "VerifiedToken")
+	s.RollbackCount = getInt("rollback_count", "rollbackCount", "RollbackCount")
 	s.LastTask = getString("last_task", "lastTask", "LastTask")
 	s.LastCommit = getString("last_commit", "lastCommit", "LastCommit")
 	s.LastCheck = getString("last_check", "lastCheck", "LastCheck")

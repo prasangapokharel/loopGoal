@@ -132,18 +132,20 @@ For EVERY file in `"remaining_queue"`, follow this strict 7-step sequence:
 
 ### Step 1: Observe & Audit Target File
 - Take the top file from `"remaining_queue"`.
+- Lock target: run `loopgoal select <file>` to enforce the single-target barrier.
 - Use code search or `grep` to inspect its functions, imports, type signatures, and standards against discovered rules.
 
 ### Step 2: Implement Bounded Refactoring / Tests
 - Refactor or write unit tests for **only** the selected file to achieve 100% compliance.
-- Do NOT touch unrelated files in the same iteration.
+- Do NOT touch unrelated files in the same iteration (out-of-scope edits are blocked).
 
-### Step 3: Run Empirical Verification Commands
-- Execute project verification shell commands (e.g., `pytest`, `ruff check`, `go test ./...`, `npm test`).
+### Step 3: Run Zero-Trust Empirical Verification
+- Execute `loopgoal verify` or project verification shell commands (e.g., `pytest`, `ruff check`, `go test ./...`, `npm test`).
 - Base success strictly on empirical command logs and zero-exit codes.
+- `loopgoal verify` generates the cryptographic one-time commit token (`.loopgoal/verified.token`).
 - If verification fails:
   - Analyze exact error log output.
-  - Fix issues in the file immediately.
+  - Fix issues in the file immediately (or run `loopgoal rollback` if spiraling).
   - Re-run verification until it passes (up to 3 attempts).
   - NEVER commit changes when verification is failing.
 
@@ -158,6 +160,7 @@ For EVERY file in `"remaining_queue"`, follow this strict 7-step sequence:
   ```bash
   git commit -m "<type>(<scope>): <concise description matching rules>"
   ```
+- Note: Pre-commit hook enforces that `.loopgoal/verified.token` exists; commits without passing verification will be blocked with exit code 1.
 - **NEVER** run `git push`.
 
 ### Step 6: Update State & Queue

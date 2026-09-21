@@ -1,0 +1,84 @@
+To prevent AI coding agents from bypassing your loop, **never rely on instructions or system prompts alone**. LLMs will always eventually skip steps, hallucinate that tests passed, or write multiple files if the only constraint is conversational instructions.
+
+You have to enforce **deterministic, machine-level barriers** that sit between the agent and your environment.
+
+---
+
+### 1. Intercept Terminal / Shell Commands (The Core Lock)
+
+Agents rely on bash/shell execution tools to edit files, run commands, and commit.
+
+* **Alias or wrap `git` inside the environment:** Replace `git` with a thin proxy wrapper script (`loopgoal-git` or an alias):
+```bash
+#!/usr/bin/env bash
+# If the agent attempts to run git commit or git push
+if [[ "$1" == "commit" || "$1" == "push" ]]; then
+  # Check if LoopGoal verification passed for the current step
+  if [ ! -f ".loopgoal/verified.token" ]; then
+    echo "❌ [LoopGoal Blocker] You cannot commit/push! Verification has NOT passed." >&2
+    echo "Required next step: Run 'loopgoal verify' first." >&2
+    exit 1
+  fi
+fi
+# If verified or safe command, pass through to real git
+exec /usr/bin/git "$@"
+
+```
+
+
+* **Why this works:** The agent receives a non-zero exit code (`exit 1`) and standard error message. The agent literally **cannot** commit or push until the verification stage succeeds.
+
+---
+
+### 2. State-Machine via Model Context Protocol (MCP)
+
+If you expose LoopGoal as an **MCP server** rather than a loose set of shell instructions, you can turn the loop into a strict state machine.
+
+* The agent only sees the tools valid for its **current state**:
+* **State 1 (Observe/Select):** Only `select_target_file` is available.
+* **State 2 (Execute):** The agent edits the targeted file.
+* **State 3 (Verify):** Only `run_loopgoal_verification` is valid.
+* **State 4 (Commit):** The `commit_iteration` tool becomes unlocked **only** when `run_loopgoal_verification` returns `exitCode: 0`.
+
+
+* **Why this works:** The LLM cannot call tools that aren't exposed to it. It cannot call "Commit" while it is in the "Execute" state.
+
+---
+
+### 3. File System Sandbox & Diff Limiters
+
+Agents frequently cause damage by editing 5 files when they were only asked to touch 1.
+
+* **Single-Target Locks:** When the agent runs `loopgoal select <file>`, write that target path to `.loopgoal/state.json`.
+* **Pre-Execution Guard:** Before any change is accepted, check `git status --porcelain`. If any file outside the active target has changed:
+```bash
+git checkout -- <unexpected-file>
+
+```
+
+
+And return an error: *"Edit rejected: You touched src/utils.ts, but your current target is auth.ts. Revert applied."*
+
+---
+
+### 4. Zero-Trust Verification (LoopGoal Runs the Tests, Not the Agent)
+
+Never ask the agent: *"Did your tests pass?"* It will often reply: *"Yes, everything passes!"* without actually running them.
+
+* **LoopGoal must invoke the test runner internally:** The agent runs a single command: `npx loopgoal verify`.
+* LoopGoal itself spawns `npm test` or `pytest`, reads the real exit code, and:
+* If **Success**: Writes a temporary one-time cryptographic token or file (`.loopgoal/verified.token`).
+* If **Fail**: Consumes the token, prints the exact failed stack trace to terminal, and blocks commit access.
+
+
+
+---
+
+### Summary Checklist to Lock the Loop
+
+| Threat | Weak Approach (Fails) | Hard Enforcement (Works) |
+| --- | --- | --- |
+| **Skipping verification** | Prompting: *"Please run tests before commit"* | Script wrapper blocks `git commit` if `.loopgoal/verified.token` is missing. |
+| **Hallucinating test passes** | Letting the agent declare tests passed | LoopGoal executes the runner and checks exit status directly. |
+| **Editing out-of-scope files** | Prompting: *"Only edit auth.ts"* | Automated check rolls back diffs in non-target files immediately. |
+| **Skipping straight to push** | Prompting: *"Do not push"* | Git pre-push hook permanently blocks remote execution. |

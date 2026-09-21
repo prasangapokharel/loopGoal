@@ -1,0 +1,32 @@
+To turn **LoopGoal** from a promising prototype into an essential developer tool that agents **cannot bypass**, focus on three key areas: enforcement, developer ergonomics, and ecosystem distribution.
+
+---
+
+### 1. Hard Enforcement (How to "Force" the Agent)
+
+Prompts alone fail because LLMs hallucinate or skip steps when context windows get noisy. True enforcement requires deterministic system-level guardrails:
+
+* **Pre-Tool Hooks / Git Wrappers:** Intercept the agent's bash executions. If the agent tries to run `git commit` or `git push` before LoopGoal emits a cryptographic or signed iteration check pass, the command must automatically abort with exit code `1`.
+* **Bounded File Locks:** Physically limit agent write access to 1–2 target files per iteration. Deny edits across outside directories until the current goal verification passes.
+* **Automated Verification Harness:** Never let the agent report "I verified this." LoopGoal itself must run the target test/linter (`npm test`, `pytest`, `cargo check`), capture `stdout`/exit codes, and inject the diff report directly into the context.
+
+---
+
+### 2. Architecture & UX Improvements
+
+* **Fix the `/docs` Routing:** Currently, the documentation link on the landing page returns an error/forbidden response. Publishing a clean, single-page reference (e.g., via VitePress, Starlight, or Mintlify) is vital for developer trust.
+* **Auto-Rollback on Test Failures:** If an iteration fails verification 3 times consecutively, LoopGoal should automatically run `git restore` back to the last known good commit and prompt the agent with a rollback context rather than letting it spiral.
+* **Interactive CLI Visualizer:** Provide a lightweight terminal UI (`Ink` or `Bubble Tea`) displaying the current state:
+```text
+[● Target: auth.ts] -> [✓ Test Suite Passed] -> [✓ Auto-Staged]
+
+```
+
+
+
+---
+
+### 3. Distribution & Adoption
+
+* **Skills Standard Support:** Since it installs via `npx skills add prasangapokharel/loopGoal`, ensure compatibility with Cursor rules (`.cursorrules`), Anthropic's Claude Code commands, and OpenAI MCP (Model Context Protocol).
+* **Provide an MCP Server Mode:** Expose LoopGoal as an MCP server so agentic interfaces can natively interact with its tools (`loopgoal_verify`, `loopgoal_checkpoint`, `loopgoal_commit`).

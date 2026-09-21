@@ -12,6 +12,7 @@ import (
 	"loopgoal/internal/agent"
 	"loopgoal/internal/config"
 	"loopgoal/internal/git"
+	"loopgoal/internal/hook"
 	"loopgoal/internal/inventory"
 	"loopgoal/internal/reconcile"
 	"loopgoal/internal/state"
@@ -277,6 +278,13 @@ func (e *Engine) runIteration(ctx context.Context, iter int) (bool, bool, error)
 
 		if retry == maxRetries {
 			e.log("! Max verification retries exceeded for this iteration.")
+			// Auto-rollback: restore working tree to prevent spiraling broken state
+			e.log("↺ Auto-Rollback: Restoring working tree to clean state to protect project integrity...")
+			_ = e.git.Rollback(ctx, changedFiles...)
+			e.state.RollbackCount++
+			_ = e.opts.StateMgr.Save(e.state)
+			e.log("✓ Clean working tree restored.")
+
 			// Run reconciliation to mark failed files
 			if e.reconciler != nil && e.taskMap != nil {
 				e.reconciler.Reconcile(e.taskMap, e.inventory, nil, changedFiles, false, lastVerifyOutput)
@@ -341,10 +349,15 @@ func (e *Engine) runIteration(ctx context.Context, iter int) (bool, bool, error)
 		return false, false, fmt.Errorf("staging iteration changes: %w", err)
 	}
 
+	// Emit one-time verification token to unlock Git pre-commit hook
+	_, _ = hook.WriteToken(e.opts.WorkDir, commitMsg)
+
 	commitHash, err := e.git.Commit(ctx, commitMsg)
 	if err != nil {
+		_ = hook.ConsumeToken(e.opts.WorkDir)
 		return false, false, fmt.Errorf("committing iteration changes: %w", err)
 	}
+	_ = hook.ConsumeToken(e.opts.WorkDir)
 	e.log(fmt.Sprintf("✓ Committed: %s", commitHash))
 
 	// Update state

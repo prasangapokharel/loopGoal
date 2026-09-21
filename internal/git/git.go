@@ -195,3 +195,18 @@ func (g *Git) Branch(ctx context.Context) (string, error) {
 	}
 	return strings.TrimSpace(out), nil
 }
+
+// Rollback reverts modified files and removes untracked files from an iteration.
+func (g *Git) Rollback(ctx context.Context, files ...string) error {
+	if len(files) == 0 {
+		_, _ = g.execGit(ctx, "checkout", "--", ".")
+		_, _ = g.execGit(ctx, "clean", "-fd")
+		return nil
+	}
+
+	for _, f := range files {
+		_, _ = g.execGit(ctx, "checkout", "--", f)
+		_, _ = g.execGit(ctx, "clean", "-f", "--", f)
+	}
+	return nil
+}

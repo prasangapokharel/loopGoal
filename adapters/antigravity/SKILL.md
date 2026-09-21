@@ -1,33 +1,21 @@
-# LoopGoal for Google Antigravity (agy)
-
-Install this file as `.agents/skills/loopgoal/SKILL.md` in your project or use the global skill in `~/.gemini/config/skills/loopgoal/SKILL.md`.
-
+---
+name: loopgoal
+description: >-
+  Autonomous development loop protocol. Run with /loopgoal [goal], /loopgoal status,
+  or /loopgoal stop to guide the agent through continuous, verifiable, single-improvement
+  iterations (Observe → Select → Implement → Verify → Commit → Repeat).
 ---
 
-## Headless Configuration
+# LoopGoal: Autonomous Development Loop Protocol
 
-When running `loopgoal run` with `agy` as the executor, you **must** pass `--dangerously-skip-permissions` so the agent can operate without interactive prompts:
+LoopGoal is a local-first autonomous development supervisor for AI coding agents. It keeps the agent working toward a user-defined goal through continuous, small, verifiable iterations.
 
-```yaml
-# .loopgoal/config.yaml
-goal: >
-  Refactor backend auth and enforce coding standards.
-
-agent:
-  command: "agy"
-  args:
-    - "--dangerously-skip-permissions"
-
-verify:
-  - "go test ./..."
-  - "go vet ./..."
-
-limits:
-  iterations: 20
-  max_retries: 3
+The fundamental loop is:
+```text
+Observe & Command Audit → Build Scope Matrix → Refactor / Write Tests → Empirical Verification → Review Diff → Commit → Next Target → Repeat
 ```
 
-`loopgoal init` writes this automatically when it detects `agy` on your PATH.
+LoopGoal is **100% generic, project-agnostic, and command-driven**. It works across any language, framework, or architecture (Go, Python, TypeScript, Rust, Java, C++, Monorepos, etc.).
 
 ---
 
@@ -84,7 +72,7 @@ tests/
 
 ### Testing Rules & Isolation Principles:
 1. **True Unit Isolation (`tests/unit/<module>/`)**:
-   - **Direct Module Imports**: Unit tests must import directly from the target module under test (e.g., `from backend.api.v1.levrage.views import LeverageViewSet`).
+   - **Direct Module Imports**: Unit tests must import directly from the target module under test (e.g., `from backend.api.v1.levrage.views import LeverageViewSet`, `from backend.services.user import UserService`).
    - **Dependency Isolation**: Mock external services, I/O, database transactions, Redis cache, and network calls so unit tests execute in milliseconds and never fail from external state.
    - **Comprehensive Branch Coverage**: Test standard success paths, invalid inputs, edge cases, permission denials, and error handling.
 2. **Integration Testing (`tests/integration/<module>/`)**:
@@ -98,37 +86,100 @@ tests/
 
 ---
 
-## 3. Zero-Premature-Stop & Continuous Execution
+## 3. ZERO-PREMATURE-STOP & CONTINUOUS EXECUTION
+
 - **DO NOT STOP after 1 file**: Processing one file is ONE iteration. You must NOT set `"status": "completed"` or `"status": "goal_reached"` until **100% of target files** in `"remaining_queue"` are audited, refactored, verified via shell commands, and committed.
-- **DO NOT END YOUR TURN**: In Antigravity chat, do NOT stop tool execution after a single file to ask the user. Immediately call tools on the next file (`Iteration 2: Inspecting path/to/file_2.ext...`) in the same turn!
+- **DO NOT END YOUR TURN**: In chat-based agent environments (Antigravity, Claude Code, etc.), do NOT stop tool execution after a single file to ask the user. Immediately call tools on the next file (`Iteration 2: Inspecting path/to/file_2.ext...`) in the same turn!
 - Keep `"status": "running"` in `.loopgoal/state.json` until `"remaining_queue"` is completely empty (`[]`).
 
 ---
 
-## 4. Slash Commands
+## 4. Slash Commands & Arguments
 
-- `/loopgoal`: Start or resume the loop using `.loopgoal/config.yaml` and `.loopgoal/state.json`.
-- `/loopgoal <goal>`: Set/override the goal and begin multi-file rule-compliance iterations.
-- `/loopgoal status`: Display current state, iteration count, last commit, remaining queue, and completed files.
-- `/loopgoal stop`: Gracefully halt the autonomous loop.
+1. **`/loopgoal <goal>`**:
+   Starts the autonomous loop toward the specified goal.
+   - Executes empirical discovery (`git ls-files`, `find`, `grep`).
+   - Audits project rules/skills (`.cursor/rules/*.mdc`, `.agents/`, `AGENTS.md`, etc.).
+   - Configures verification commands (`pytest`, `ruff check`, `go test ./...`, `npm test`, etc.).
+
+2. **`/loopgoal`**:
+   Starts or resumes the autonomous loop using `.loopgoal/config.yaml` and `.loopgoal/state.json`.
+   - If items remain in `"remaining_queue"`, resumes directly with the next pending file!
+
+3. **`/loopgoal status`**:
+   Displays current status, iteration count, last commit, verification status, and remaining queue:
+   ```text
+   LoopGoal Status
+   ────────────────────────────
+   Status:      <running | completed | blocked | stopped | goal_reached>
+   Iteration:   <current_iteration>
+   Goal:        <goal>
+   Last task:   <summary_of_last_change>
+   Last commit: <git_commit_hash>
+   Last check:  <passed | failed>
+   Completed:   <count> files
+   Remaining:   <list of files left in queue>
+   ```
+
+4. **`/loopgoal stop`**:
+   Gracefully halts the autonomous loop. Writes `"status": "stopped"` to `.loopgoal/state.json`.
 
 ---
 
 ## 5. The Iteration Cycle (File by File)
 
-1. **Observe & Audit Target File via Commands & Grep**: Pick top file from `"remaining_queue"`. Audit filename, imports, typing, and formatting using `grep`/`ripgrep` and static analyzers against discovered rules (`.cursor/rules/*.mdc`, `AGENTS.md`, etc.).
-2. **Implement Refactoring / Tests**: Apply minimal, high-quality refactoring or unit tests strictly matching project rules.
-3. **Run Empirical Verification Commands**: Execute verification commands (`pytest`, `ruff check`, `go test ./...`, `npm test`, etc.). Base success strictly on empirical command output logs. Fix errors until tests pass.
-4. **Review Diff**: Ensure pre-existing uncommitted developer files are untouched.
-5. **Stage & Commit**: Stage changed file (`git add <file>`) and commit locally with conventional commit message. Never push.
-6. **Update State & Queue**: Remove processed file from `"remaining_queue"`, add to `"completed_files"`, update `.loopgoal/state.json` and `.loopgoal/taskmap.json`.
-7. **Continuous Progression**: If `"remaining_queue"` is not empty, IMMEDIATELY proceed to Step 1 for the next file without ending your turn.
+For EVERY file in `"remaining_queue"`, follow this strict 7-step sequence:
+
+### Step 1: Observe & Audit Target File
+- Take the top file from `"remaining_queue"`.
+- Lock target: run `loopgoal select <file>` to enforce the single-target barrier.
+- Use code search or `grep` to inspect its functions, imports, type signatures, and standards against discovered rules.
+
+### Step 2: Implement Bounded Refactoring / Tests
+- Refactor or write unit tests for **only** the selected file to achieve 100% compliance.
+- Do NOT touch unrelated files in the same iteration (out-of-scope edits are blocked).
+
+### Step 3: Run Zero-Trust Empirical Verification
+- Execute `loopgoal verify` or project verification shell commands (e.g., `pytest`, `ruff check`, `go test ./...`, `npm test`).
+- Base success strictly on empirical command logs and zero-exit codes.
+- `loopgoal verify` generates the cryptographic one-time commit token (`.loopgoal/verified.token`).
+- If verification fails:
+  - Analyze exact error log output.
+  - Fix issues in the file immediately (or run `loopgoal rollback` if spiraling).
+  - Re-run verification until it passes (up to 3 attempts).
+  - NEVER commit changes when verification is failing.
+
+### Step 4: Review Diff
+- Run `git diff` and `git status`.
+- Ensure pre-existing uncommitted developer work is untouched.
+- Ensure diff is minimal, clean, and isolated to the target file.
+
+### Step 5: Stage & Commit
+- Stage the changed file: `git add <file>`
+- Commit with a clear conventional commit message:
+  ```bash
+  git commit -m "<type>(<scope>): <concise description matching rules>"
+  ```
+- Note: Pre-commit hook enforces that `.loopgoal/verified.token` exists; commits without passing verification will be blocked with exit code 1.
+- **NEVER** run `git push`.
+
+### Step 6: Update State & Queue
+- Remove the processed file from `"remaining_queue"` and append it to `"completed_files"`.
+- Update `.loopgoal/state.json` and `.loopgoal/taskmap.json`.
+
+### Step 7: Continuous Progression
+- **If `"remaining_queue"` is not empty**: IMMEDIATELY proceed to Step 1 for the next file without waiting for user input.
+- **If `"remaining_queue"` is empty**: Set `"status": "goal_reached"`, print final summary of all refactored files, and finish.
 
 ---
 
 ## 6. Safety Constraints
 
-- **No Remote Push**: Never run `git push`.
+- **No Remote Push**: Never run `git push`. LoopGoal operates exclusively on local Git.
 - **No Destructive Commands**: Never run `git reset --hard` or `git clean -fd`.
 - **Preserve User Changes**: Always identify pre-existing dirty files and exclude them from staging.
-- **Stop Conditions**: Halt if `/loopgoal stop` is issued, max iterations reached, or verification fails repeatedly.
+- **Stop Conditions**: Halt immediately if:
+  - The user requests `/loopgoal stop`.
+  - Max iterations reached.
+  - Verification fails repeatedly and cannot be resolved.
+  - All files in the target scope match 100% of project rules.

@@ -18,8 +18,10 @@ import (
 	"loopgoal/internal/config"
 	"loopgoal/internal/detect"
 	"loopgoal/internal/git"
+	"loopgoal/internal/hook"
 	"loopgoal/internal/inventory"
 	"loopgoal/internal/loop"
+	"loopgoal/internal/mcp"
 	"loopgoal/internal/state"
 	"loopgoal/internal/taskmap"
 	"loopgoal/internal/verify"
@@ -43,6 +45,16 @@ func Execute(args []string) error {
 		return RunInit(cmdArgs)
 	case "run":
 		return RunLoop(cmdArgs)
+	case "verify":
+		return RunVerify(cmdArgs)
+	case "select":
+		return RunSelect(cmdArgs)
+	case "hook":
+		return RunHook(cmdArgs)
+	case "rollback":
+		return RunRollback(cmdArgs)
+	case "mcp":
+		return RunMCP(cmdArgs)
 	case "scan":
 		return RunScan(cmdArgs)
 	case "plan":
@@ -80,6 +92,11 @@ Usage:
 Commands:
   init      Initialize LoopGoal configuration in .loopgoal/
   run       Start the autonomous development loop
+  verify    Execute project verification and generate one-time commit token
+  select    Lock a single target file for the current iteration
+  hook      Install or manage Git hard enforcement hooks (pre-commit, pre-push)
+  rollback  Restore working tree to clean state, discarding broken changes
+  mcp       Run Model Context Protocol server over stdio
   scan      Inspect and categorize repository inventory
   plan      Display current task map, pending queue, and evidence
   test      Execute pre-flight gate checks (inventory, rules, agent, git)
@@ -544,4 +561,219 @@ func isProcessRunning(pid int) bool {
 		return false
 	}
 	return proc.Signal(syscall.Signal(0)) == nil
+}
+
+// RunVerify executes project test suites and generates a one-time commit token if passed.
+func RunVerify(args []string) error {
+	fs := flag.NewFlagSet("verify", flag.ContinueOnError)
+	dir := fs.String("dir", ".", "Project root directory")
+	cfgFile := fs.String("config", "", "Path to config file")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	workDir, err := filepath.Abs(*dir)
+	if err != nil {
+		return fmt.Errorf("resolving directory: %w", err)
+	}
+
+	configPath := *cfgFile
+	if configPath == "" {
+		configPath = filepath.Join(workDir, config.DefaultDir, config.DefaultConfigFile)
+	}
+
+	var verifyCmds []string
+	cfg, err := config.Load(configPath)
+	if err == nil {
+		verifyCmds = cfg.Verify
+	} else {
+		detected := detect.Detect(workDir)
+		verifyCmds = detected.VerifyCommands
+	}
+
+	if len(verifyCmds) == 0 {
+		return fmt.Errorf("no verification commands configured in %s or auto-detected", configPath)
+	}
+
+	fmt.Println("LoopGoal Zero-Trust Verification")
+	fmt.Println("────────────────────────────")
+	fmt.Printf("WorkDir:  %s\n", workDir)
+	fmt.Printf("Commands: %s\n\n", strings.Join(verifyCmds, ", "))
+
+	verifier := verify.NewRunner(workDir)
+	ctx := context.Background()
+	summary, err := verifier.Run(ctx, verifyCmds)
+	if err != nil {
+		_ = hook.ConsumeToken(workDir)
+		return fmt.Errorf("verification execution error: %w", err)
+	}
+
+	if !summary.Passed {
+		_ = hook.ConsumeToken(workDir)
+		fmt.Printf("✗ Verification FAILED on command: %s\n\n", summary.FailedCommand)
+		fmt.Println(summary.ErrorOutput())
+		fmt.Println("❌ [LoopGoal Blocker] Verification failed. Git commit remains locked.")
+		return fmt.Errorf("verification failed on command: %s", summary.FailedCommand)
+	}
+
+	token, err := hook.WriteToken(workDir, fmt.Sprintf("Verified %d commands at %s", len(verifyCmds), time.Now().Format(time.RFC3339)))
+	if err != nil {
+		return fmt.Errorf("generating token: %w", err)
+	}
+
+	fmt.Println("✓ All verification commands passed successfully!")
+	fmt.Printf("✓ Cryptographic commit token generated: %s\n", hook.TokenPath(workDir))
+	fmt.Printf("  Token signature: %s\n", token)
+	fmt.Println("✓ Git commit is now UNLOCKED.")
+	return nil
+}
+
+// RunSelect locks a single file target for the current iteration.
+func RunSelect(args []string) error {
+	fs := flag.NewFlagSet("select", flag.ContinueOnError)
+	dir := fs.String("dir", ".", "Project root directory")
+	objective := fs.String("objective", "", "Bounded improvement description")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	var targetFile string
+	if fs.NArg() > 0 {
+		targetFile = fs.Arg(0)
+	} else {
+		return fmt.Errorf("target file required: loopgoal select <file> [-objective '...']")
+	}
+
+	workDir, err := filepath.Abs(*dir)
+	if err != nil {
+		return fmt.Errorf("resolving directory: %w", err)
+	}
+
+	statePath := filepath.Join(workDir, config.DefaultDir, config.DefaultStateFile)
+	stateMgr := state.NewManager(statePath)
+
+	st, err := stateMgr.Load()
+	if err != nil {
+		st, err = stateMgr.Init("Autonomous Development")
+		if err != nil {
+			return fmt.Errorf("initializing state: %w", err)
+		}
+	}
+
+	st.ActiveTarget = targetFile
+	if *objective != "" {
+		st.LastTask = *objective
+	}
+	st.Status = state.StatusRunning
+	if err := stateMgr.Save(st); err != nil {
+		return fmt.Errorf("saving target: %w", err)
+	}
+
+	fmt.Println("LoopGoal Single-Target Barrier")
+	fmt.Println("────────────────────────────")
+	fmt.Printf("[●] Active Target: %s\n", targetFile)
+	if *objective != "" {
+		fmt.Printf("[●] Objective:     %s\n", *objective)
+	}
+	fmt.Println("[ℹ] Hard enforcement active: Out-of-scope edits to other files will be automatically rejected.")
+	return nil
+}
+
+// RunHook installs, removes, or checks the status of LoopGoal Git hard enforcement hooks.
+func RunHook(args []string) error {
+	if len(args) < 1 {
+		fmt.Println("Usage: loopgoal hook <install|remove|status> [-dir .]")
+		return fmt.Errorf("subcommand required: install, remove, or status")
+	}
+
+	subcmd := args[0]
+	fs := flag.NewFlagSet("hook", flag.ContinueOnError)
+	dir := fs.String("dir", ".", "Project root directory")
+	if err := fs.Parse(args[1:]); err != nil {
+		return err
+	}
+
+	workDir, err := filepath.Abs(*dir)
+	if err != nil {
+		return fmt.Errorf("resolving directory: %w", err)
+	}
+
+	switch subcmd {
+	case "install":
+		if err := hook.Install(workDir); err != nil {
+			return fmt.Errorf("installing hooks: %w", err)
+		}
+		fmt.Println("✓ Installed LoopGoal Git hard-enforcement hooks in .git/hooks/:")
+		fmt.Println("  • pre-commit: blocks unverified commits without .loopgoal/verified.token")
+		fmt.Println("  • pre-push:   blocks unauthorized remote push")
+		return nil
+
+	case "remove":
+		if err := hook.Remove(workDir); err != nil {
+			return fmt.Errorf("removing hooks: %w", err)
+		}
+		fmt.Println("✓ Removed LoopGoal Git hooks.")
+		return nil
+
+	case "status":
+		hasCommit, hasPush := hook.Status(workDir)
+		fmt.Println("LoopGoal Git Hooks Status:")
+		fmt.Printf("  • pre-commit (Unverified commit lock): %v\n", hasCommit)
+		fmt.Printf("  • pre-push   (Remote push safety lock): %v\n", hasPush)
+		return nil
+
+	default:
+		return fmt.Errorf("unknown hook subcommand '%s'. Use install, remove, or status", subcmd)
+	}
+}
+
+// RunRollback restores the working tree to a clean state, discarding broken iteration edits.
+func RunRollback(args []string) error {
+	fs := flag.NewFlagSet("rollback", flag.ContinueOnError)
+	dir := fs.String("dir", ".", "Project root directory")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	workDir, err := filepath.Abs(*dir)
+	if err != nil {
+		return fmt.Errorf("resolving directory: %w", err)
+	}
+
+	gitClient := git.New(workDir)
+	ctx := context.Background()
+
+	var files []string
+	if fs.NArg() > 0 {
+		files = fs.Args()
+	}
+
+	if err := gitClient.Rollback(ctx, files...); err != nil {
+		return fmt.Errorf("rollback failed: %w", err)
+	}
+
+	_ = hook.ConsumeToken(workDir)
+	if len(files) > 0 {
+		fmt.Printf("✓ Rolled back specified files: %s\n", strings.Join(files, ", "))
+	} else {
+		fmt.Println("✓ Working tree restored to clean state (reverted unverified changes).")
+	}
+	return nil
+}
+
+// RunMCP runs the LoopGoal Model Context Protocol (MCP) server over standard I/O.
+func RunMCP(args []string) error {
+	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
+	dir := fs.String("dir", ".", "Project root directory")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	workDir, err := filepath.Abs(*dir)
+	if err != nil {
+		return fmt.Errorf("resolving directory: %w", err)
+	}
+
+	server := mcp.NewServer(workDir, os.Stdin, os.Stdout)
+	return server.Serve(context.Background())
 }

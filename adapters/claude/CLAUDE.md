@@ -59,11 +59,11 @@ When the user runs `/loopgoal [goal]`:
 
 4. **Execute Autonomous Loop** — for each file in `remaining_queue`:
    - **Observe**: Inspect `git status`. Never modify pre-existing uncommitted user changes.
-   - **Select**: Pick ONE single, bounded, high-value improvement toward the goal.
+   - **Select**: Run `loopgoal select <file>` to lock the single active target.
    - **Implement / Test**: Apply code or test changes cleanly, following all discovered rules.
-   - **Verify**: Run the project's verification commands (e.g. `pytest`, `npm test`, `go test ./...`, `ruff check`). Fix failures before proceeding.
+   - **Verify**: Run `loopgoal verify` (or project test runner). `loopgoal verify` produces `.loopgoal/verified.token` required to unlock git commit.
    - **Diff Review**: Confirm that changes are isolated to the target file only.
-   - **Commit**: `git add <file>` and `git commit -m "<type>(<scope>): <summary>"`. Never push.
+   - **Commit**: `git add <file>` and `git commit -m "<type>(<scope>): <summary>"`. (Enforced by pre-commit hook; fails without verification token).
    - **State**: Write updated iteration, commit hash, remaining queue to `.loopgoal/state.json`.
    - **Repeat**: Immediately proceed to the next file without waiting for user input.
 

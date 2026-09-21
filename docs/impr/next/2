@@ -1,0 +1,555 @@
+Yes — now I understand the exact problem much better.
+
+You **don't just want a task checklist**. You want LoopGoal to first build a **complete repository inventory**, then map the user's goal against that inventory, and continuously verify that the AI has not missed an affected file.
+
+For a backend with ~100 API files, for example:
+
+```text
+Goal:
+"Add pagination to all user listing APIs"
+
+             ↓
+
+Repository Inventory
+             ↓
+100 API files discovered
+             ↓
+Relevant files identified
+             ↓
+Task Map
+             ↓
+api/v1/users/List.mo       → task-001
+api/v1/admin/Users.mo      → task-002
+api/v1/team/Members.mo     → task-003
+...
+             ↓
+AI implements
+             ↓
+RE-SCAN repository
+             ↓
+Compare actual state vs Task Map
+             ↓
+Missing file?
+   YES ─────────────→ add task
+   NO
+             ↓
+Run skill/rule compliance
+             ↓
+Run verification
+             ↓
+Everything PASS?
+   NO → continue
+   YES → final audit → commit
+```
+
+That is **much more accurate** than simply asking an agent to "implement the goal."
+
+Also, your existing project-style skills can contain very concrete architecture rules—for example, one of your stored skill files explicitly maps `Controller → Service → Repository → Storage` and says controllers must not contain business logic.  Another project document maintains an explicit file reference mapping implementation, storage, migration, and test files.  **LoopGoal should turn this kind of information into a machine-checkable execution map instead of merely putting it into the agent's prompt.**
+
+## The feature I would add: `Repository Inventory + Task Graph`
+
+Not just `TaskMap`.
+
+I would make the architecture:
+
+```text
+Repository
+    │
+    ▼
+Inventory
+    │
+    ├── every file
+    ├── directories
+    ├── modules
+    ├── symbols
+    ├── dependencies
+    ├── project commands
+    ├── skills
+    ├── rules
+    └── docs
+    │
+    ▼
+Goal Analysis
+    │
+    ▼
+Task Graph
+    │
+    ├── requirements
+    ├── affected files
+    ├── related files
+    ├── dependencies
+    ├── rules
+    └── verification
+    │
+    ▼
+Agent
+    │
+    ▼
+Reconciliation
+    │
+    ▼
+Actual Repository
+```
+
+### The important distinction
+
+The AI should **not decide the file universe only from its context window**.
+
+Instead LoopGoal should give it an authoritative inventory.
+
+For example, before execution:
+
+```bash
+find . -type f \
+  -not -path './.git/*' \
+  -not -path './node_modules/*' \
+  -not -path './vendor/*'
+```
+
+But don't stop at `find`.
+
+Build a normalized inventory:
+
+```text
+RepositoryInventory
+├── files
+├── directories
+├── modules
+├── manifests
+├── source files
+├── tests
+├── docs
+├── configuration
+├── instruction files
+└── generated/ignored files
+```
+
+For a 100-file API backend:
+
+```text
+inventory.files = 247
+inventory.source = 143
+inventory.tests = 71
+inventory.docs = 18
+inventory.config = 15
+```
+
+Then the agent can reason from **the complete known repository**, not from whatever files it happened to inspect first.
+
+---
+
+# Even better: file-to-task mapping
+
+This is the part you are describing.
+
+```yaml
+tasks:
+  - id: task-001
+    requirement: "Add pagination to user listing"
+    
+    files:
+      - path: api/v1/users/list.mo
+        role: endpoint
+        status: pending
+
+      - path: services/user.mo
+        role: business_logic
+        status: pending
+
+      - path: repositories/user.mo
+        role: data_access
+        status: pending
+
+      - path: testing/users/list_test.mo
+        role: verification
+        status: pending
+```
+
+But also maintain the reverse relationship:
+
+```yaml
+files:
+  api/v1/users/list.mo:
+    tasks:
+      - task-001
+
+  services/user.mo:
+    tasks:
+      - task-001
+      - task-004
+
+  repositories/user.mo:
+    tasks:
+      - task-001
+```
+
+So you effectively get a **bipartite graph**:
+
+```text
+             TASKS
+               │
+      ┌────────┼────────┐
+      ↓        ↓        ↓
+   task-001 task-002 task-003
+      │        │        │
+      └────┬───┘        │
+           ↓            ↓
+        FILES
+           │
+   ┌───────┼──────────┐
+   ↓       ↓          ↓
+service  repository  test
+```
+
+That is considerably more useful than a flat checklist.
+
+---
+
+# The critical improvement: `Expected vs Actual`
+
+This should be the heart of LoopGoal.
+
+After every iteration:
+
+```text
+TASK MAP
+   vs
+REPOSITORY INVENTORY
+   vs
+GIT DIFF
+   vs
+VERIFICATION
+   vs
+RULES/SKILLS
+```
+
+Example:
+
+```text
+Requirement: Pagination for user listing
+
+Expected
+────────────────────────────
+api/v1/users/list.mo       PASS
+services/user.mo           PASS
+repositories/user.mo       PASS
+testing/users/list_test.mo FAIL
+docs/api/users.md          MISSING
+
+Actual
+────────────────────────────
+4 files changed
+
+Result
+────────────────────────────
+2 PASS
+1 FAIL
+1 MISSING
+```
+
+Therefore:
+
+```text
+COMPLETED = false
+```
+
+No matter what the AI says.
+
+---
+
+# Don't only track files — track evidence
+
+This is where I would make LoopGoal significantly stronger.
+
+Each task should have:
+
+```text
+Requirement
+Affected files
+Expected change
+Actual change
+Verification
+Rule compliance
+Evidence
+Status
+```
+
+Example:
+
+```yaml
+task:
+  id: task-001
+  requirement: "Add pagination"
+
+  files:
+    - api/v1/users/list.mo
+    - services/user.mo
+    - repositories/user.mo
+    - testing/users/list_test.mo
+
+  evidence:
+    api/v1/users/list.mo:
+      changed: true
+      verified: true
+
+    services/user.mo:
+      changed: true
+      verified: true
+
+    repositories/user.mo:
+      changed: true
+      verified: true
+
+    testing/users/list_test.mo:
+      changed: false
+      verified: false
+
+  status: incomplete
+```
+
+Now the AI cannot simply say:
+
+> "I implemented pagination."
+
+LoopGoal asks:
+
+> **Show evidence for every mapped requirement.**
+
+---
+
+# Skills and rules become another graph
+
+Suppose your skill says:
+
+```text
+Controller
+→ Service
+→ Repository
+→ Storage
+```
+
+and:
+
+```text
+Controllers must not contain business logic.
+```
+
+That should become:
+
+```text
+task-001
+   │
+   ├── file requirements
+   │
+   ├── skill requirements
+   │    ├── controller rule
+   │    ├── service rule
+   │    └── repository rule
+   │
+   └── verification
+```
+
+Then the final check becomes:
+
+```text
+                 TASK
+                  │
+       ┌──────────┼──────────┐
+       ↓          ↓          ↓
+     FILES       RULES      TESTS
+       │          │          │
+       └──────────┼──────────┘
+                  ↓
+             COMPLIANCE
+                  ↓
+             PASS / FAIL
+```
+
+This is particularly important because your existing skills can contain architectural constraints, naming conventions, business rules, and verification requirements. 
+
+---
+
+# I would change your LoopGoal architecture to this
+
+```text
+internal/
+
+├── inventory/
+│   ├── scanner.go
+│   ├── files.go
+│   ├── modules.go
+│   └── dependencies.go
+│
+├── discovery/
+│   ├── project.go
+│   ├── instructions.go
+│   ├── skills.go
+│   └── rules.go
+│
+├── planning/
+│   ├── analyzer.go
+│   ├── taskgraph.go
+│   └── mapping.go
+│
+├── execution/
+│   ├── loop.go
+│   ├── task.go
+│   └── reconciliation.go
+│
+├── compliance/
+│   ├── checker.go
+│   ├── rules.go
+│   └── evidence.go
+│
+├── verification/
+│   ├── verifier.go
+│   └── commands.go
+│
+├── agent/
+│   ├── agent.go
+│   ├── claude.go
+│   ├── codex.go
+│   └── generic.go
+│
+├── git/
+│
+└── state/
+```
+
+The important new components are:
+
+```text
+inventory/
+planning/
+reconciliation/
+compliance/
+evidence/
+```
+
+---
+
+# The loop should become
+
+```text
+1. SCAN
+   ↓
+2. INVENTORY
+   ↓
+3. LOAD RULES + SKILLS
+   ↓
+4. ANALYZE GOAL
+   ↓
+5. BUILD TASK GRAPH
+   ↓
+6. MAP FILES
+   ↓
+7. EXECUTE ONE TASK
+   ↓
+8. RE-SCAN
+   ↓
+9. RECONCILE EXPECTED vs ACTUAL
+   ↓
+10. DISCOVER MISSING WORK
+   ↓
+11. UPDATE TASK GRAPH
+   ↓
+12. VERIFY
+   ↓
+13. CHECK SKILLS + RULES
+   ↓
+14. COLLECT EVIDENCE
+   ↓
+15. ALL REQUIRED ITEMS PASS?
+       │
+       ├── NO → continue
+       │
+       └── YES
+             ↓
+          FINAL AUDIT
+             ↓
+          COMMIT
+```
+
+### One important correction
+
+Don't literally make it:
+
+> "AI won't stop until everything passes."
+
+Because that can create an infinite loop.
+
+Make it:
+
+> **LoopGoal will not declare completion until every required item has evidence of PASS, or the run reaches a bounded BLOCKED state.**
+
+That gives you both **accuracy and safety**.
+
+```text
+PASS      → complete
+FAIL      → fix
+MISSING   → discover/fix
+UNKNOWN   → investigate
+BLOCKED   → stop safely with evidence
+```
+
+Never:
+
+```text
+UNKNOWN → PASS
+```
+
+---
+
+## This is the real differentiator
+
+Most agent loops are approximately:
+
+```text
+goal
+ ↓
+AI
+ ↓
+code
+ ↓
+tests
+ ↓
+done
+```
+
+Your target can be:
+
+```text
+goal
+ ↓
+complete repository inventory
+ ↓
+requirements
+ ↓
+task graph
+ ↓
+file mapping
+ ↓
+rules + skills mapping
+ ↓
+AI implementation
+ ↓
+repository re-scan
+ ↓
+expected/actual reconciliation
+ ↓
+missing-work discovery
+ ↓
+verification
+ ↓
+compliance
+ ↓
+evidence
+ ↓
+final audit
+ ↓
+done
+```
+
+That is a **much more serious architecture for autonomous software engineering**.
+
+And importantly, it remains completely language-agnostic: whether the repository has 100 Go API files, 300 Python files, 500 TypeScript files, or a mixed monorepo, the **inventory → mapping → reconciliation → compliance** mechanism stays the same.

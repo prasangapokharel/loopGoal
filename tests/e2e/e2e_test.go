@@ -341,3 +341,195 @@ func (m *mockE2EAgent) Run(ctx context.Context, task string) (agent.Result, erro
 	}
 	return agent.Result{}, nil
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// New E2E tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+// TestE2E_MultiFileQueue verifies that the loop commits one file per iteration
+// and advances through all 3 iterations before marking goal_reached.
+func TestE2E_MultiFileQueue(t *testing.T) {
+	dir := t.TempDir()
+	initGitRepo(t, dir)
+
+	// Start with a single committed file so HEAD exists.
+	_ = os.WriteFile(filepath.Join(dir, "base.txt"), []byte("base\n"), 0o644)
+	commitAll(t, dir, "initial base")
+
+	cfg := &config.Config{
+		Goal: "Create three feature files",
+		Agent: config.AgentConfig{
+			Command: "mock",
+		},
+		Verify: []string{"true"}, // always passes
+		Limits: config.LimitsConfig{
+			Iterations: 5,
+			MaxRetries: 1,
+		},
+	}
+
+	cfgDir := filepath.Join(dir, config.DefaultDir)
+	_ = os.MkdirAll(cfgDir, 0o755)
+
+	iteration := 0
+	filenames := []string{"feature_a.txt", "feature_b.txt", "feature_c.txt"}
+
+	mock := &mockE2EAgent{
+		onRun: func(ctx context.Context, task string) (agent.Result, error) {
+			if iteration >= len(filenames) {
+				return agent.Result{GoalReached: true, Task: "all features complete"}, nil
+			}
+			fname := filenames[iteration]
+			iteration++
+			_ = os.WriteFile(filepath.Join(dir, fname), []byte(fname+"\n"), 0o644)
+			return agent.Result{
+				Task:        "create " + fname,
+				GoalReached: iteration == len(filenames),
+			}, nil
+		},
+	}
+
+	stateMgr := state.NewManager(filepath.Join(cfgDir, config.DefaultStateFile))
+	engine, err := loop.NewEngine(loop.Options{
+		WorkDir:  dir,
+		Config:   cfg,
+		StateMgr: stateMgr,
+		Git:      git.New(dir),
+		Verifier: verify.NewRunner(dir),
+		Agent:    mock,
+		Logger:   &bytes.Buffer{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := engine.Run(context.Background()); err != nil {
+		t.Fatalf("engine run failed: %v", err)
+	}
+
+	st, err := stateMgr.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Must reach goal_reached
+	if st.Status != state.StatusGoalReached {
+		t.Errorf("expected goal_reached, got %s", st.Status)
+	}
+
+	// Must have made 3 successful iterations (one file each)
+	if st.Iteration != 3 {
+		t.Errorf("expected 3 committed iterations, got %d", st.Iteration)
+	}
+
+	// All 3 feature files must exist and be committed
+	for _, fname := range filenames {
+		if _, err := os.Stat(filepath.Join(dir, fname)); err != nil {
+			t.Errorf("expected %s to exist on disk: %v", fname, err)
+		}
+	}
+
+	// Git log should have: initial + 3 feature commits = 4 total
+	cmd := exec.Command("git", "rev-list", "--count", "HEAD")
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git rev-list failed: %v", err)
+	}
+	if strings.TrimSpace(string(out)) != "4" {
+		t.Errorf("expected 4 commits in git log, got %s", string(out))
+	}
+}
+
+// TestE2E_VerifyFixCommitCycle tests the full verify→fail→agent-fix→re-verify→commit cycle.
+// The first agent run produces invalid output; the fix run produces valid output;
+// the commit must only include the corrected file.
+func TestE2E_VerifyFixCommitCycle(t *testing.T) {
+	dir := t.TempDir()
+	initGitRepo(t, dir)
+
+	_ = os.WriteFile(filepath.Join(dir, "seed.txt"), []byte("seed\n"), 0o644)
+	commitAll(t, dir, "initial seed")
+
+	cfg := &config.Config{
+		Goal: "Produce a valid output.txt",
+		Agent: config.AgentConfig{
+			Command: "mock",
+		},
+		Verify: []string{"grep -x 'STATUS_OK' output.txt"},
+		Limits: config.LimitsConfig{
+			Iterations: 1,
+			MaxRetries: 2,
+		},
+	}
+
+	cfgDir := filepath.Join(dir, config.DefaultDir)
+	_ = os.MkdirAll(cfgDir, 0o755)
+
+	callCount := 0
+	mock := &mockE2EAgent{
+		onRun: func(ctx context.Context, task string) (agent.Result, error) {
+			callCount++
+			if callCount == 1 {
+				// First call: write BROKEN content — 'grep -x STATUS_OK' will fail.
+				_ = os.WriteFile(filepath.Join(dir, "output.txt"), []byte("BROKEN\n"), 0o644)
+				return agent.Result{Task: "create output.txt (broken)"}, nil
+			}
+			// Second call (fix retry): write exact match — verification passes.
+			_ = os.WriteFile(filepath.Join(dir, "output.txt"), []byte("STATUS_OK\n"), 0o644)
+			return agent.Result{Task: "fix output.txt to STATUS_OK", GoalReached: true}, nil
+		},
+	}
+
+	var logBuf bytes.Buffer
+	stateMgr := state.NewManager(filepath.Join(cfgDir, config.DefaultStateFile))
+	engine, err := loop.NewEngine(loop.Options{
+		WorkDir:  dir,
+		Config:   cfg,
+		StateMgr: stateMgr,
+		Git:      git.New(dir),
+		Verifier: verify.NewRunner(dir),
+		Agent:    mock,
+		Logger:   &logBuf,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := engine.Run(context.Background()); err != nil {
+		t.Fatalf("engine run failed: %v", err)
+	}
+
+	// Agent must have been called exactly twice: initial + fix retry.
+	if callCount != 2 {
+		t.Errorf("expected agent to be called 2 times (initial + fix), got %d", callCount)
+	}
+
+	// output.txt must contain OK after the fix.
+	content, err := os.ReadFile(filepath.Join(dir, "output.txt"))
+	if err != nil {
+		t.Fatalf("output.txt missing: %v", err)
+	}
+	if !strings.Contains(string(content), "STATUS_OK") {
+		t.Errorf("expected output.txt to contain STATUS_OK, got: %s", string(content))
+	}
+
+	// Verify git log contains a commit for output.txt.
+	cmd := exec.Command("git", "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD")
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git diff-tree failed: %v", err)
+	}
+	if !strings.Contains(string(out), "output.txt") {
+		t.Errorf("expected output.txt in latest commit, got: %s", string(out))
+	}
+
+	// Log must mention verification failure for diagnostic completeness.
+	if !strings.Contains(logBuf.String(), "Verification failed") && !strings.Contains(logBuf.String(), "failed") {
+		t.Logf("log output: %s", logBuf.String())
+		// Soft check — logging wording may vary, but warn.
+		t.Log("warning: expected verification failure mention in logs")
+	}
+}
+

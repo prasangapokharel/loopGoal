@@ -12,7 +12,10 @@ import (
 	"loopgoal/internal/agent"
 	"loopgoal/internal/config"
 	"loopgoal/internal/git"
+	"loopgoal/internal/inventory"
+	"loopgoal/internal/reconcile"
 	"loopgoal/internal/state"
+	"loopgoal/internal/taskmap"
 	"loopgoal/internal/verify"
 )
 
@@ -31,14 +34,18 @@ type Options struct {
 
 // Engine coordinates the autonomous iteration cycle.
 type Engine struct {
-	opts    Options
-	cfg     *config.Config
-	state   *state.State
-	git     *git.Git
-	verify  *verify.Runner
-	agent   agent.Agent
-	out     io.Writer
-	pidFile string
+	opts        Options
+	cfg         *config.Config
+	state       *state.State
+	git         *git.Git
+	verify      *verify.Runner
+	agent       agent.Agent
+	out         io.Writer
+	pidFile     string
+	taskMapPath string
+	inventory   *inventory.Inventory
+	taskMap     *taskmap.TaskMap
+	reconciler  *reconcile.Engine
 }
 
 // NewEngine constructs a new loop engine.
@@ -54,15 +61,18 @@ func NewEngine(opts Options) (*Engine, error) {
 	}
 
 	pidFile := filepath.Join(opts.WorkDir, config.DefaultDir, "loopgoal.pid")
+	taskMapPath := filepath.Join(opts.WorkDir, config.DefaultDir, "taskmap.json")
 
 	return &Engine{
-		opts:    opts,
-		cfg:     opts.Config,
-		git:     opts.Git,
-		verify:  opts.Verifier,
-		agent:   opts.Agent,
-		out:     opts.Logger,
-		pidFile: pidFile,
+		opts:        opts,
+		cfg:         opts.Config,
+		git:         opts.Git,
+		verify:      opts.Verifier,
+		agent:       opts.Agent,
+		out:         opts.Logger,
+		pidFile:     pidFile,
+		taskMapPath: taskMapPath,
+		reconciler:  reconcile.New(reconcile.Options{MaxTaskExpansion: 50}),
 	}, nil
 }
 
@@ -80,6 +90,22 @@ func (e *Engine) Run(ctx context.Context) error {
 		return fmt.Errorf("not a git repository (or any of the parent directories)")
 	}
 
+	// 1. Repository Inventory Scan
+	scanner := inventory.NewScanner(e.opts.WorkDir)
+	inv, err := scanner.Scan(ctx)
+	if err != nil {
+		return fmt.Errorf("scanning repository inventory: %w", err)
+	}
+	e.inventory = inv
+
+	// 2. Load or initialize TaskMap
+	tm, err := taskmap.Load(e.taskMapPath)
+	if err != nil {
+		tm = taskmap.BuildFromInventory(inv, e.cfg.Goal)
+		_ = tm.Save(e.taskMapPath)
+	}
+	e.taskMap = tm
+
 	// Load or initialize state
 	st, err := e.opts.StateMgr.Load()
 	if err != nil {
@@ -92,11 +118,16 @@ func (e *Engine) Run(ctx context.Context) error {
 	e.state.Goal = e.cfg.Goal
 	e.state.Status = state.StatusRunning
 	e.state.PID = e.opts.PID
+	e.state.RemainingQueue = tm.PendingFiles()
 	if err := e.opts.StateMgr.Save(e.state); err != nil {
 		return fmt.Errorf("saving state: %w", err)
 	}
 
 	e.logHeader()
+	e.log(fmt.Sprintf("Repository Inventory: %s", inv.Summary()))
+	if len(tm.Files) > 0 {
+		e.log(fmt.Sprintf("Task Queue: %d pending file targets", len(tm.PendingFiles())))
+	}
 
 	for {
 		// 1. Check stop conditions
@@ -135,9 +166,11 @@ func (e *Engine) Run(ctx context.Context) error {
 
 		if iterSuccess {
 			e.state.Iteration = nextIter
+			e.state.RemainingQueue = e.taskMap.PendingFiles()
 			if err := e.opts.StateMgr.Save(e.state); err != nil {
 				return fmt.Errorf("saving state: %w", err)
 			}
+			_ = e.taskMap.Save(e.taskMapPath)
 		}
 
 		if shouldStop {
@@ -158,6 +191,13 @@ func (e *Engine) Run(ctx context.Context) error {
 // Returns (success bool, shouldStop bool, err error)
 func (e *Engine) runIteration(ctx context.Context, iter int) (bool, bool, error) {
 	e.log("→ Inspecting repository")
+
+	// Re-scan inventory if needed
+	if sc := inventory.NewScanner(e.opts.WorkDir); sc != nil {
+		if freshInv, err := sc.Scan(ctx); err == nil {
+			e.inventory = freshInv
+		}
+	}
 
 	// Snapshot pre-existing dirty files so we don't commit unrelated changes
 	preExistingDirty, err := e.git.Snapshot(ctx)
@@ -192,7 +232,12 @@ func (e *Engine) runIteration(ctx context.Context, iter int) (bool, bool, error)
 	if len(changedFiles) == 0 {
 		e.log("ℹ No file changes detected in this iteration.")
 		if res.GoalReached {
-			e.log("✓ Agent reports goal has been reached!")
+			// Evidence gate: verify that all tasks are actually complete before accepting goal_reached
+			if e.taskMap != nil && !e.taskMap.CanComplete() {
+				e.log(fmt.Sprintf("! Agent reported goal reached, but %d tasks/files remain unverified. Rejecting false completion.", len(e.taskMap.PendingFiles())))
+				return true, false, nil
+			}
+			e.log("✓ Goal reached verified with evidence!")
 			e.updateStatus(state.StatusGoalReached)
 			return false, true, nil
 		}
@@ -204,6 +249,7 @@ func (e *Engine) runIteration(ctx context.Context, iter int) (bool, bool, error)
 
 	// Verification loop with retries
 	verifyPassed := false
+	var lastVerifyOutput string
 	maxRetries := e.cfg.Limits.MaxRetries
 	if maxRetries <= 0 {
 		maxRetries = config.DefaultMaxRetries
@@ -221,14 +267,21 @@ func (e *Engine) runIteration(ctx context.Context, iter int) (bool, bool, error)
 
 		if vSummary.Passed {
 			verifyPassed = true
+			lastVerifyOutput = "All verification commands passed"
 			e.log("✓ Verification passed")
 			break
 		}
 
+		lastVerifyOutput = vSummary.ErrorOutput()
 		e.log(fmt.Sprintf("✗ Verification failed on command: %s", vSummary.FailedCommand))
 
 		if retry == maxRetries {
 			e.log("! Max verification retries exceeded for this iteration.")
+			// Run reconciliation to mark failed files
+			if e.reconciler != nil && e.taskMap != nil {
+				e.reconciler.Reconcile(e.taskMap, e.inventory, nil, changedFiles, false, lastVerifyOutput)
+				_ = e.taskMap.Save(e.taskMapPath)
+			}
 			e.updateStatus(state.StatusBlocked)
 			return false, true, nil
 		}
@@ -254,6 +307,15 @@ func (e *Engine) runIteration(ctx context.Context, iter int) (bool, bool, error)
 
 	if !verifyPassed {
 		return false, true, nil
+	}
+
+	// Post-iteration Reconciliation
+	if e.reconciler != nil && e.taskMap != nil {
+		recRes := e.reconciler.Reconcile(e.taskMap, e.inventory, nil, changedFiles, true, lastVerifyOutput)
+		_ = e.taskMap.Save(e.taskMapPath)
+		if len(recRes.NewlyDiscovered) > 0 {
+			e.log(fmt.Sprintf("→ Dynamic discovery: %d new files added to task queue", len(recRes.NewlyDiscovered)))
+		}
 	}
 
 	// Diff review
@@ -289,9 +351,16 @@ func (e *Engine) runIteration(ctx context.Context, iter int) (bool, bool, error)
 	e.state.LastTask = taskDesc
 	e.state.LastCommit = commitHash
 	e.state.Status = state.StatusRunning
+	if e.taskMap != nil {
+		e.state.RemainingQueue = e.taskMap.PendingFiles()
+	}
 
 	if res.GoalReached {
-		e.log("✓ Agent reports goal has been reached!")
+		if e.taskMap != nil && !e.taskMap.CanComplete() {
+			e.log(fmt.Sprintf("ℹ Agent reported goal reached, but %d tasks/files remain pending verification. Continuing loop.", len(e.taskMap.PendingFiles())))
+			return true, false, nil
+		}
+		e.log("✓ Agent reports goal has been reached and verified with evidence!")
 		e.updateStatus(state.StatusGoalReached)
 		return true, true, nil
 	}
@@ -306,6 +375,30 @@ func (e *Engine) buildPrompt(iter int, preExistingDirty map[string]bool) string 
 	sb.WriteString(fmt.Sprintf("Primary goal:\n%s\n\n", strings.TrimSpace(e.cfg.Goal)))
 	sb.WriteString(fmt.Sprintf("Current iteration:\n%d\n\n", iter))
 
+	if e.inventory != nil {
+		sb.WriteString(fmt.Sprintf("Repository Inventory:\n%s\n\n", e.inventory.Summary()))
+	}
+
+	if e.taskMap != nil {
+		pending := e.taskMap.PendingFiles()
+		if len(pending) > 0 {
+			sb.WriteString(fmt.Sprintf("Pending Work Queue (%d files remaining):\n", len(pending)))
+			limit := 10
+			for i, p := range pending {
+				if i >= limit {
+					sb.WriteString(fmt.Sprintf("  ... and %d more pending files\n", len(pending)-limit))
+					break
+				}
+				role := ""
+				if item := e.taskMap.Files[p]; item != nil {
+					role = item.Role
+				}
+				sb.WriteString(fmt.Sprintf("  [ ] %s (%s)\n", p, role))
+			}
+			sb.WriteString("\n")
+		}
+	}
+
 	if len(preExistingDirty) > 0 {
 		sb.WriteString("Note: The working tree already has the following files modified by the user:\n")
 		for f := range preExistingDirty {
@@ -315,7 +408,8 @@ func (e *Engine) buildPrompt(iter int, preExistingDirty map[string]bool) string 
 	}
 
 	sb.WriteString("Your task:\n")
-	sb.WriteString("Inspect the repository and identify ONE small, valuable improvement that directly contributes to the primary goal.\n\n")
+	sb.WriteString("Inspect the repository and identify ONE small, valuable improvement that directly contributes to the primary goal.\n")
+	sb.WriteString("Prioritize uncompleted files from the Pending Work Queue above.\n\n")
 	sb.WriteString("Rules:\n")
 	sb.WriteString("- Make only the changes necessary for this improvement.\n")
 	sb.WriteString("- Do not rewrite unrelated code.\n")

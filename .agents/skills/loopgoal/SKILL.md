@@ -12,28 +12,24 @@ LoopGoal is a local-first autonomous development supervisor for AI coding agents
 
 The fundamental loop is:
 ```text
-Observe & Command Audit → Build Scope Matrix → Refactor File → Empirical Shell Verification → Review Diff → Commit → Next File → Repeat
+Observe & Command Audit → Build Scope Matrix → Refactor / Write Tests → Empirical Verification → Review Diff → Commit → Next Target → Repeat
 ```
 
 LoopGoal is **100% generic, project-agnostic, and command-driven**. It works across any language, framework, or architecture (Go, Python, TypeScript, Rust, Java, C++, Monorepos, etc.).
 
 ---
 
-## EMPIRICAL COMMAND AUDITING & DEEP GREP PROTOCOL
+## 1. EMPIRICAL COMMAND AUDITING & INVENTORY PROTOCOL
 
-### 1. Empirical Shell & Grep File Discovery (Iteration 1)
+### Empirical File Discovery (Iteration 1)
 When the user invokes `/loopgoal [goal]`, the agent MUST NOT guess or assume file lists. It MUST use shell commands and search tools to establish 100% complete empirical baselines:
 1. **Discover all target files empirically**:
-   - Run shell commands or directory listings (`git ls-files <target_dir>`, `find <target_dir> -type f`, etc.).
+   - Run shell commands (`git ls-files <target_dir>`, `find <target_dir> -type f`, etc.).
    - Ensure zero files are missed in the target scope.
 2. **Audit Rule & Skill Standards**:
    - Discover `.cursor/rules/*.mdc`, `.agents/rules/*.md`, `.agents/skills/*/SKILL.md`, `AGENTS.md`, `GEMINI.md`, etc.
 3. **Run Deep Grep & Static Analysis Audits**:
-   - Use `grep` / `ripgrep` to search for non-compliant patterns across all files:
-     - Non-compliant variable / function casing (e.g. camelCase vs snake_case).
-     - Deprecated API usage or missing type annotations.
-     - Unhandled error cases or missing logging/docstrings.
-   - Run configured linters and checkers (e.g. `ruff check`, `mypy`, `golangci-lint`, `eslint`, `tsc --noEmit`, `cargo clippy`).
+   - Use `grep` / `ripgrep` to search for non-compliant patterns across all files (casing, error handling, clean imports, architecture).
 4. **Construct the Task Matrix in `.loopgoal/state.json`**:
    Save the full file queue, rules applied, and baseline check status:
    ```json
@@ -48,7 +44,6 @@ When the user invokes `/loopgoal [goal]`, the agent MUST NOT guess or assume fil
      "remaining_queue": [
        "path/to/file_1.ext",
        "path/to/file_2.ext",
-       "path/to/file_3.ext",
        "path/to/file_N.ext"
      ],
      "completed_files": []
@@ -57,14 +52,49 @@ When the user invokes `/loopgoal [goal]`, the agent MUST NOT guess or assume fil
 
 ---
 
-### 2. Zero-Premature-Stop & Continuous Execution
+## 2. SCALABLE STANDARDIZED TESTING PROTOCOL
+
+When the goal involves writing, increasing coverage, or refactoring tests, always enforce a scalable, structured testing hierarchy:
+
+### Standardized Test Directory Structure
+```text
+tests/
+├── unit/
+│   └── <module_or_service_name>/
+│       └── test_<file_name>.py    # or <file_name>_test.go, <file_name>.test.ts
+├── integration/
+│   └── <service_or_flow_name>/
+│       └── test_<flow_name>.py
+└── e2e/
+    └── <feature_name>/
+        └── test_<feature_name>.py
+```
+
+### Testing Rules & Isolation Principles:
+1. **True Unit Isolation (`tests/unit/<module>/`)**:
+   - **Direct Module Imports**: Unit tests must import directly from the target module under test (e.g., `from backend.api.v1.levrage.views import LeverageViewSet`, `from backend.services.user import UserService`).
+   - **Dependency Isolation**: Mock external services, I/O, database transactions, Redis cache, and network calls so unit tests execute in milliseconds and never fail from external state.
+   - **Comprehensive Branch Coverage**: Test standard success paths, invalid inputs, edge cases, permission denials, and error handling.
+2. **Integration Testing (`tests/integration/<module>/`)**:
+   - Test interaction between controllers, services, repositories, and persistence layers.
+3. **End-to-End Testing (`tests/e2e/<feature>/`)**:
+   - Test full API request/response lifecycles, HTTP status codes, and serialized output schemas.
+4. **Test Command Compatibility (`tests/command.yaml` / Manifests)**:
+   - Respect project test configs (`pytest.ini`, `pyproject.toml`, `tests/command.yaml`, `go.mod`, `package.json`).
+5. **Git Diff Hygiene & Cache Exclusion**:
+   - Ensure test cache artifacts (`.pytest_cache/`, `.coverage`, `coverage/`, `htmlcov/`, `.nyc_output/`) are listed in `.gitignore` so test runs never pollute Git diffs or commits.
+
+---
+
+## 3. ZERO-PREMATURE-STOP & CONTINUOUS EXECUTION
+
 - **DO NOT STOP after 1 file**: Processing one file is ONE iteration. You must NOT set `"status": "completed"` or `"status": "goal_reached"` until **100% of target files** in `"remaining_queue"` are audited, refactored, verified via shell commands, and committed.
 - **DO NOT END YOUR TURN**: In chat-based agent environments (Antigravity, Claude Code, etc.), do NOT stop tool execution after a single file to ask the user. Immediately call tools on the next file (`Iteration 2: Inspecting path/to/file_2.ext...`) in the same turn!
 - Keep `"status": "running"` in `.loopgoal/state.json` until `"remaining_queue"` is completely empty (`[]`).
 
 ---
 
-## Slash Commands & Arguments
+## 4. Slash Commands & Arguments
 
 1. **`/loopgoal <goal>`**:
    Starts the autonomous loop toward the specified goal.
@@ -96,22 +126,20 @@ When the user invokes `/loopgoal [goal]`, the agent MUST NOT guess or assume fil
 
 ---
 
-## The Iteration Cycle (File by File)
+## 5. The Iteration Cycle (File by File)
 
 For EVERY file in `"remaining_queue"`, follow this strict 7-step sequence:
 
-### Step 1: Observe & Audit Target File via Commands & Grep
+### Step 1: Observe & Audit Target File
 - Take the top file from `"remaining_queue"`.
-- Use `grep` / `ripgrep` or code search to inspect its functions, imports, type signatures, error handling, and formatting against discovered rules (`.cursor/rules/*.mdc`, `AGENTS.md`, etc.).
-- Identify all non-compliant lines needing refactoring.
+- Use code search or `grep` to inspect its functions, imports, type signatures, and standards against discovered rules.
 
-### Step 2: Implement Bounded Refactoring
-- Refactor **only** the selected file to achieve 100% compliance with project rules and skills.
-- Rename files/classes/functions if required by project standards.
+### Step 2: Implement Bounded Refactoring / Tests
+- Refactor or write unit tests for **only** the selected file to achieve 100% compliance.
 - Do NOT touch unrelated files in the same iteration.
 
 ### Step 3: Run Empirical Verification Commands
-- Execute project verification shell commands (e.g., `pytest`, `ruff check`, `go test ./...`, `npm test`, `tsc --noEmit`, `golangci-lint`).
+- Execute project verification shell commands (e.g., `pytest`, `ruff check`, `go test ./...`, `npm test`).
 - Base success strictly on empirical command logs and zero-exit codes.
 - If verification fails:
   - Analyze exact error log output.
@@ -134,14 +162,7 @@ For EVERY file in `"remaining_queue"`, follow this strict 7-step sequence:
 
 ### Step 6: Update State & Queue
 - Remove the processed file from `"remaining_queue"` and append it to `"completed_files"`.
-- Update `.loopgoal/state.json`:
-  - `iteration`: incremented count
-  - `status`: `"running"` (unless `"remaining_queue"` is empty)
-  - `last_task`: summary of change
-  - `last_commit`: short git hash
-  - `last_check`: empirical verification output log summary
-  - `remaining_queue`: updated list of pending files
-  - `completed_files`: list of completed files
+- Update `.loopgoal/state.json` and `.loopgoal/taskmap.json`.
 
 ### Step 7: Continuous Progression
 - **If `"remaining_queue"` is not empty**: IMMEDIATELY proceed to Step 1 for the next file without waiting for user input.
@@ -149,7 +170,7 @@ For EVERY file in `"remaining_queue"`, follow this strict 7-step sequence:
 
 ---
 
-## Safety Constraints
+## 6. Safety Constraints
 
 - **No Remote Push**: Never run `git push`. LoopGoal operates exclusively on local Git.
 - **No Destructive Commands**: Never run `git reset --hard` or `git clean -fd`.

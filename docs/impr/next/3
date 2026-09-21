@@ -1,0 +1,351 @@
+Yes. If you already have **file-path inventory**, the next accuracy jump should be **dependency/context awareness**, not just adding more files.
+
+I would build LoopGoal in this order:
+
+### 1. File inventory → File relevance graph
+
+Knowing every path is good:
+
+```text
+src/api/user.go
+src/service/user.go
+src/repository/user.go
+tests/user_test.go
+```
+
+But LoopGoal should determine **why each file matters**:
+
+```text
+Requirement: Add user authentication
+
+user.go
+ ├─ imported by → auth.go
+ ├─ used by → user_service.go
+ ├─ tested by → user_test.go
+ └─ configured by → auth.config
+```
+
+So the system knows the **impact surface**, not just the path.
+
+---
+
+### 2. Dependency graph
+
+Next scan:
+
+```text
+File
+ ↓
+Imports
+ ↓
+References
+ ↓
+Callers
+ ↓
+Tests
+ ↓
+Configuration
+ ↓
+Related docs
+```
+
+This is much more valuable than simply asking an LLM:
+
+> “Which files should I modify?”
+
+The deterministic scanner can discover much of this itself.
+
+---
+
+### 3. Symbol-level mapping
+
+Go one level deeper than files.
+
+Instead of:
+
+```text
+user_service.go
+```
+
+track:
+
+```text
+UserService.CreateUser()
+UserService.DeleteUser()
+UserService.GetUser()
+```
+
+Then:
+
+```text
+Requirement
+   ↓
+Task
+   ↓
+Symbol
+   ↓
+File
+   ↓
+Tests
+```
+
+This makes large repositories much easier to reason about.
+
+---
+
+### 4. Requirement → Evidence graph
+
+This is probably your **biggest next feature**.
+
+Every requirement should have evidence.
+
+```text
+REQ-001
+"User can register"
+
+Evidence:
+✓ src/api/auth.go
+✓ src/service/user.go
+✓ tests/auth_test.go
+✓ test command passed
+✓ API response verified
+```
+
+Never:
+
+```text
+REQ-001
+Status: DONE
+Reason: Agent said done
+```
+
+Instead:
+
+```text
+REQ-001
+Status: VERIFIED
+Evidence: 6 items
+```
+
+---
+
+### 5. Change-impact analysis
+
+Before the agent edits anything:
+
+```text
+Expected changes:
+  8 files
+```
+
+Afterward:
+
+```text
+Actual changes:
+  11 files
+```
+
+LoopGoal asks:
+
+```text
++3 unexpected files
+
+Why?
+```
+
+Similarly:
+
+```text
+Expected: 8
+Actual: 5
+
+3 expected files untouched
+```
+
+That should automatically reopen the task.
+
+This is extremely useful.
+
+---
+
+### 6. Rules → actual code compliance
+
+Don't just load:
+
+```text
+AGENTS.md
+```
+
+Convert rules into checkable requirements.
+
+Example:
+
+```text
+Rule:
+"Controllers must not contain business logic."
+
+Mapping:
+
+Controller → Business logic detected
+Status: FAIL
+```
+
+So:
+
+```text
+Rules
+ ↓
+Constraints
+ ↓
+Affected files
+ ↓
+Verification
+```
+
+---
+
+### 7. Test coverage mapping
+
+Don't simply run:
+
+```text
+tests passed
+```
+
+Ask:
+
+```text
+Which requirements do these tests prove?
+```
+
+Example:
+
+```text
+REQ-001 → test_auth_login ✓
+REQ-002 → test_refresh_token ✓
+REQ-003 → no evidence ✗
+```
+
+Then:
+
+```text
+ALL TESTS PASS
+```
+
+does **not** automatically mean:
+
+```text
+TASK COMPLETE
+```
+
+---
+
+### 8. Semantic repository search
+
+Add a repository knowledge layer:
+
+```text
+User request
+      ↓
+Exact paths
+      ↓
+Dependencies
+      ↓
+Symbols
+      ↓
+Semantic search
+      ↓
+Related docs/config/tests
+```
+
+The LLM should receive a **small relevant context**, not the entire repository.
+
+This also reduces token cost.
+
+---
+
+### 9. Continuous discovery
+
+This is critical.
+
+Suppose the agent changes:
+
+```text
+src/auth/login.ts
+```
+
+and that reveals:
+
+```text
+src/auth/session.ts
+```
+
+LoopGoal should automatically do:
+
+```text
+CHANGE DETECTED
+      ↓
+RESCAN
+      ↓
+NEW RELEVANT FILE
+      ↓
+ADD TO TASK GRAPH
+      ↓
+VERIFY
+```
+
+So your graph is **dynamic**, not created once at the beginning.
+
+---
+
+## The architecture I'd aim for
+
+```text
+                 USER GOAL
+                    │
+                    ▼
+             REQUIREMENT GRAPH
+                    │
+                    ▼
+              TASK GRAPH
+                    │
+        ┌───────────┼───────────┐
+        ▼           ▼           ▼
+   FILE GRAPH   SYMBOL GRAPH  RULE GRAPH
+        │           │           │
+        └───────────┼───────────┘
+                    ▼
+              AGENT EXECUTION
+                    │
+                    ▼
+              CHANGE DETECTION
+                    │
+                    ▼
+             IMPACT ANALYSIS
+                    │
+                    ▼
+              RE-RECONCILIATION
+                    │
+                    ▼
+              VERIFICATION
+                    │
+                    ▼
+             EVIDENCE GRAPH
+                    │
+                    ▼
+             COMPLETION GATE
+```
+
+### If I were choosing your **next 5 improvements**
+
+**1. Dependency/impact graph** ⭐⭐⭐⭐⭐
+**2. Requirement → evidence mapping** ⭐⭐⭐⭐⭐
+**3. Symbol-level mapping** ⭐⭐⭐⭐
+**4. Expected-vs-actual change analysis** ⭐⭐⭐⭐⭐
+**5. Continuous discovery/reconciliation** ⭐⭐⭐⭐⭐
+
+The key evolution is:
+
+> **File paths tell LoopGoal what exists. Dependency + symbol + evidence graphs tell LoopGoal what matters and whether the work is actually complete.**
+
+That is the direction I'd take before adding lots of agent integrations or fancy UI.

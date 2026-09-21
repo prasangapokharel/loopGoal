@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"loopgoal/internal/resolve"
 )
 
 const (
@@ -43,7 +45,8 @@ func DefaultConfig() *Config {
 	return &Config{
 		Goal: "Continuously improve this project with small, safe, production-quality changes.",
 		Agent: AgentConfig{
-			Command: "codex",
+			Command: "agy",
+			Args:    resolve.HeadlessArgs("agy"),
 		},
 		Verify: []string{
 			"go test ./...",
@@ -56,6 +59,7 @@ func DefaultConfig() *Config {
 }
 
 // DetectConfig returns a configuration tailored to the repository in projectDir.
+// It automatically populates the correct headless args for known AI agents.
 func DetectConfig(projectDir string, verifyCommands []string) *Config {
 	cfg := DefaultConfig()
 	if len(verifyCommands) > 0 {
@@ -64,12 +68,21 @@ func DetectConfig(projectDir string, verifyCommands []string) *Config {
 	return cfg
 }
 
+// ConfigForAgent returns a config preset for the specified agent command,
+// including the correct headless args required for non-interactive execution.
+func ConfigForAgent(command string) *Config {
+	cfg := DefaultConfig()
+	cfg.Agent.Command = command
+	cfg.Agent.Args = resolve.HeadlessArgs(command)
+	return cfg
+}
+
 // DefaultConfigYAML returns the formatted default YAML string.
 func DefaultConfigYAML() string {
 	return FormatConfigYAML(DefaultConfig())
 }
 
-// FormatConfigYAML converts a Config into formatted YAML.
+// FormatConfigYAML converts a Config into formatted, well-commented YAML.
 func FormatConfigYAML(cfg *Config) string {
 	var sb strings.Builder
 	sb.WriteString("# LoopGoal Configuration\n")
@@ -79,6 +92,12 @@ func FormatConfigYAML(cfg *Config) string {
 	}
 	sb.WriteString("\nagent:\n")
 	sb.WriteString(fmt.Sprintf("  command: %q\n", cfg.Agent.Command))
+	if len(cfg.Agent.Args) > 0 {
+		sb.WriteString("  args:\n")
+		for _, a := range cfg.Agent.Args {
+			sb.WriteString(fmt.Sprintf("    - %q\n", a))
+		}
+	}
 	sb.WriteString("\nverify:\n")
 	for _, v := range cfg.Verify {
 		sb.WriteString(fmt.Sprintf("  - %q\n", v))

@@ -4,16 +4,21 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os/exec"
 	"regexp"
 	"strings"
+
+	"loopgoal/internal/resolve"
 )
 
 // CommandAgent executes an external CLI agent process.
+// Set StreamWriter to an io.Writer (e.g. os.Stdout) to receive live output.
 type CommandAgent struct {
-	Command string
-	Args    []string
-	WorkDir string
+	Command      string
+	Args         []string
+	WorkDir      string
+	StreamWriter io.Writer // optional: receives real-time stdout/stderr
 }
 
 // NewCommandAgent creates an adapter that delegates tasks to a CLI command.
@@ -25,9 +30,39 @@ func NewCommandAgent(command string, args []string, workDir string) *CommandAgen
 	}
 }
 
-// Run executes the external command, piping the task prompt via stdin or arguments.
+// WithStreaming returns a copy of CommandAgent configured to stream live output
+// to w. This is a fluent helper for callers that do not use struct literals.
+func (c *CommandAgent) WithStreaming(w io.Writer) *CommandAgent {
+	cp := *c
+	cp.StreamWriter = w
+	return &cp
+}
+
+// Validate checks that the agent command can be resolved before the loop
+// starts. Returns a detailed, actionable error if the binary is not found.
+func (c *CommandAgent) Validate() error {
+	// Skip validation for shell-composed commands (contain spaces) — they go
+	// through sh -c and cannot be statically resolved.
+	if strings.Contains(c.Command, " ") {
+		return nil
+	}
+	_, err := resolve.Resolve(c.Command)
+	return err
+}
+
+// Run executes the external command, piping the task prompt via stdin or
+// arguments. If StreamWriter is set, output is forwarded in real-time; it is
+// also buffered internally so ParseAgentOutput can analyse the full text.
 func (c *CommandAgent) Run(ctx context.Context, task string) (Result, error) {
-	var cmd *exec.Cmd
+	// Resolve the binary path with cross-platform search + helpful errors.
+	resolvedCmd := c.Command
+	if !strings.Contains(c.Command, " ") {
+		if r, err := resolve.Resolve(c.Command); err != nil {
+			return Result{}, fmt.Errorf("agent not found: %w", err)
+		} else {
+			resolvedCmd = r
+		}
+	}
 
 	hasPromptPlaceholder := false
 	var finalArgs []string
@@ -40,34 +75,42 @@ func (c *CommandAgent) Run(ctx context.Context, task string) (Result, error) {
 		finalArgs = append(finalArgs, arg)
 	}
 
+	var cmd *exec.Cmd
 	if len(finalArgs) > 0 {
-		cmd = exec.CommandContext(ctx, c.Command, finalArgs...)
+		cmd = exec.CommandContext(ctx, resolvedCmd, finalArgs...)
 	} else if strings.Contains(c.Command, " ") {
-		// Command contains arguments or shell symbols
+		// Command string contains embedded arguments / shell syntax.
 		cmd = exec.CommandContext(ctx, "sh", "-c", c.Command)
 	} else {
-		cmd = exec.CommandContext(ctx, c.Command)
+		cmd = exec.CommandContext(ctx, resolvedCmd)
 	}
 
 	cmd.Dir = c.WorkDir
 
-	// If prompt was not embedded in arguments, stream it via stdin
+	// Stream task via stdin unless it was embedded in args.
 	if !hasPromptPlaceholder {
 		cmd.Stdin = strings.NewReader(task)
 	}
 
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	// Buffer always captures output for parsing.
+	// If StreamWriter is set, output is tee'd there in real-time.
+	var stdoutBuf, stderrBuf bytes.Buffer
+	if c.StreamWriter != nil {
+		cmd.Stdout = io.MultiWriter(&stdoutBuf, c.StreamWriter)
+		cmd.Stderr = io.MultiWriter(&stderrBuf, c.StreamWriter)
+	} else {
+		cmd.Stdout = &stdoutBuf
+		cmd.Stderr = &stderrBuf
+	}
 
 	runErr := cmd.Run()
 
-	combinedOutput := stdout.String()
-	if stderr.Len() > 0 {
+	combinedOutput := stdoutBuf.String()
+	if stderrBuf.Len() > 0 {
 		if combinedOutput != "" && !strings.HasSuffix(combinedOutput, "\n") {
 			combinedOutput += "\n"
 		}
-		combinedOutput += stderr.String()
+		combinedOutput += stderrBuf.String()
 	}
 
 	res := parseAgentOutput(combinedOutput)

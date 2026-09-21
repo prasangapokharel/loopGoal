@@ -1,6 +1,7 @@
 package agent_test
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
@@ -56,5 +57,46 @@ func TestCommandAgentPlaceholder(t *testing.T) {
 	expected := "received: sample task prompt\n"
 	if res.Output != expected {
 		t.Errorf("expected %q, got %q", expected, res.Output)
+	}
+}
+
+// TestCommandAgentStreaming verifies that output is written to StreamWriter
+// in real-time while the full output is also available in Result.Output.
+func TestCommandAgentStreaming(t *testing.T) {
+	ctx := context.Background()
+
+	var streamBuf bytes.Buffer
+	ca := agent.NewCommandAgent("echo", []string{"streamed output"}, t.TempDir()).
+		WithStreaming(&streamBuf)
+
+	res, err := ca.Run(ctx, "ignored")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Both StreamWriter and Result.Output must contain the same content.
+	if streamBuf.String() == "" {
+		t.Error("StreamWriter received no output")
+	}
+	if res.Output != streamBuf.String() {
+		t.Errorf("Result.Output %q differs from stream %q", res.Output, streamBuf.String())
+	}
+	if !bytes.Contains(streamBuf.Bytes(), []byte("streamed output")) {
+		t.Errorf("expected 'streamed output' in stream, got: %q", streamBuf.String())
+	}
+}
+
+// TestWithStreamingNil ensures Run works normally when StreamWriter is nil.
+func TestWithStreamingNil(t *testing.T) {
+	ctx := context.Background()
+	ca := agent.NewCommandAgent("echo", []string{"hello"}, t.TempDir())
+	ca.StreamWriter = nil // explicit nil — must not panic
+
+	res, err := ca.Run(ctx, "task")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.Output == "" {
+		t.Error("expected non-empty output")
 	}
 }

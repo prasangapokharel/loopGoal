@@ -1,0 +1,747 @@
+Yes. Before you start real autonomous execution, build a **pre-execution test suite** that validates the entire LoopGoal control system.
+
+The important point: don't only test whether functions work. Test whether LoopGoal can **detect missing work and refuse false completion**.
+
+## Recommended `tests/` structure
+
+```text
+tests/
+├── unit/
+│   ├── inventory/
+│   ├── discovery/
+│   ├── planning/
+│   ├── graph/
+│   ├── reconciliation/
+│   ├── compliance/
+│   ├── verification/
+│   ├── evidence/
+│   └── state/
+│
+├── integration/
+│   ├── repository_scan/
+│   ├── task_mapping/
+│   ├── dependency_graph/
+│   ├── agent_execution/
+│   ├── reconciliation/
+│   └── completion_gate/
+│
+├── scenarios/
+│   ├── missing_file/
+│   ├── missing_requirement/
+│   ├── missed_test/
+│   ├── violated_rule/
+│   ├── unexpected_file/
+│   ├── dependency_discovery/
+│   ├── newly_discovered_file/
+│   ├── partial_completion/
+│   ├── false_done/
+│   ├── agent_failure/
+│   ├── verification_failure/
+│   └── recovery/
+│
+├── fixtures/
+│   ├── simple/
+│   ├── monorepo/
+│   ├── backend/
+│   ├── frontend/
+│   ├── mixed_language/
+│   └── broken_projects/
+│
+└── smoke/
+    ├── startup/
+    ├── init/
+    ├── scan/
+    ├── plan/
+    ├── run/
+    ├── verify/
+    └── audit/
+```
+
+---
+
+# 1. Smoke tests
+
+These should run **before anything else**.
+
+```bash
+loopgoal doctor
+loopgoal init
+loopgoal scan
+loopgoal plan
+loopgoal verify
+loopgoal audit
+```
+
+Verify:
+
+```text
+✓ Binary starts
+✓ Config loads
+✓ Repository detected
+✓ Git detected
+✓ Inventory works
+✓ Instructions discovered
+✓ Skills discovered
+✓ Rules discovered
+✓ Task graph generated
+✓ Dependency graph generated
+✓ Verification engine starts
+✓ State can be persisted
+✓ State can be restored
+```
+
+These should be extremely fast.
+
+---
+
+# 2. Inventory tests
+
+Test whether LoopGoal actually sees the repository correctly.
+
+### Scenario
+
+Fixture:
+
+```text
+project/
+├── src/
+│   ├── auth/
+│   │   ├── login.ts
+│   │   └── session.ts
+│   ├── user.ts
+│   └── api.ts
+├── tests/
+│   └── auth.test.ts
+├── README.md
+└── package.json
+```
+
+Expected:
+
+```text
+7 relevant files
+```
+
+Test:
+
+```text
+✓ Every relevant file discovered
+✓ Directory structure correct
+✓ File roles detected
+✓ Test files identified
+✓ Config files identified
+```
+
+Also test ignored files:
+
+```text
+node_modules/
+.git/
+dist/
+build/
+coverage/
+```
+
+They should not accidentally become task targets.
+
+---
+
+# 3. Instruction discovery tests
+
+Create fixtures containing:
+
+```text
+AGENTS.md
+CLAUDE.md
+.cursor/rules/*
+.agents/skills/*
+```
+
+Verify:
+
+```text
+✓ All applicable instructions discovered
+✓ Correct scope
+✓ Parent instructions inherited
+✓ Child instructions override when appropriate
+✓ Duplicate instructions handled
+✓ Invalid instruction files don't crash execution
+```
+
+---
+
+# 4. Skill/rule compliance tests
+
+Example rule:
+
+```text
+Controllers must not contain business logic.
+```
+
+Create a fixture violating it.
+
+Expected:
+
+```text
+Compliance: FAIL
+Completion: BLOCKED
+```
+
+Then fix it:
+
+```text
+Compliance: PASS
+```
+
+This is important because **rules must become executable compliance checks**, not just prompt text.
+
+---
+
+# 5. Task mapping tests
+
+Input:
+
+```text
+Add password reset functionality.
+```
+
+Expected graph:
+
+```text
+Requirement
+   ↓
+Password reset
+   ↓
+Tasks
+   ├── API
+   ├── service
+   ├── persistence
+   ├── email
+   └── tests
+```
+
+Then verify each task has:
+
+```text
+✓ requirement
+✓ affected files
+✓ dependencies
+✓ verification
+✓ status
+```
+
+No orphan tasks.
+
+No requirements without tasks.
+
+No task without a requirement unless explicitly classified as supporting work.
+
+---
+
+# 6. Dependency graph tests
+
+This is one of your most important new features.
+
+Fixture:
+
+```text
+controller
+   ↓
+service
+   ↓
+repository
+   ↓
+database
+```
+
+If the user changes the repository layer, LoopGoal should discover:
+
+```text
+repository
+service
+controller
+tests
+```
+
+as potentially impacted.
+
+Test:
+
+```text
+✓ imports detected
+✓ references detected
+✓ dependency direction correct
+✓ reverse dependencies available
+✓ cycles handled
+✓ missing dependency doesn't crash
+```
+
+---
+
+# 7. Symbol graph tests
+
+Example:
+
+```text
+UserService.createUser()
+```
+
+should map to:
+
+```text
+UserService.createUser()
+        ↓
+user_service.ts
+        ↓
+UserController.register()
+        ↓
+register.test.ts
+```
+
+Test:
+
+```text
+✓ symbol discovered
+✓ definition located
+✓ references located
+✓ tests linked
+✓ renamed/deleted symbol detected
+```
+
+---
+
+# 8. Expected-vs-actual change tests
+
+This is another **critical test category**.
+
+Expected:
+
+```text
+8 files
+```
+
+Agent changes:
+
+```text
+5 files
+```
+
+LoopGoal must say:
+
+```text
+3 expected files missing
+→ NOT COMPLETE
+```
+
+Opposite:
+
+```text
+Expected: 8
+Actual: 11
+```
+
+Should produce:
+
+```text
+3 unexpected files
+→ RECONCILIATION REQUIRED
+```
+
+Do not automatically fail every unexpected file; some may be legitimate dependencies discovered during implementation.
+
+The important thing is that LoopGoal **detects them and reconciles them**.
+
+---
+
+# 9. False "done" tests
+
+You absolutely need these.
+
+Create a fake agent:
+
+```text
+FakeAgent:
+"Task completed successfully."
+```
+
+But deliberately leave:
+
+```text
+2 requirements
+1 test
+1 rule
+```
+
+unfinished.
+
+Expected:
+
+```text
+Agent: DONE
+
+LoopGoal:
+Requirements: 2 FAIL
+Tests: 1 FAIL
+Rules: 1 FAIL
+
+FINAL STATUS: BLOCKED
+```
+
+This proves your fundamental idea works.
+
+---
+
+# 10. Partial completion
+
+Example:
+
+```text
+Requirements: 10
+Completed: 8
+```
+
+Expected:
+
+```text
+80% complete
+STATUS: INCOMPLETE
+```
+
+Never:
+
+```text
+80% → DONE
+```
+
+---
+
+# 11. Newly discovered file
+
+This is extremely important for your architecture.
+
+Initial graph:
+
+```text
+auth.ts
+auth.test.ts
+```
+
+Agent discovers:
+
+```text
+session.ts
+```
+
+LoopGoal should:
+
+```text
+RESCAN
+   ↓
+session.ts discovered
+   ↓
+dependency graph updated
+   ↓
+task graph updated
+   ↓
+verification updated
+```
+
+Test that the task does **not** remain falsely complete using the original graph.
+
+---
+
+# 12. Evidence tests
+
+Requirement:
+
+```text
+User can reset password.
+```
+
+Evidence:
+
+```text
+✓ API implementation
+✓ service implementation
+✓ database migration
+✓ integration test
+✓ test passed
+```
+
+Then remove one piece.
+
+Expected:
+
+```text
+Evidence incomplete
+Requirement unresolved
+Completion blocked
+```
+
+This proves:
+
+```text
+Claim ≠ Evidence
+```
+
+---
+
+# 13. Verification failure tests
+
+Fake:
+
+```text
+build → PASS
+tests → FAIL
+lint → PASS
+```
+
+Expected:
+
+```text
+STATUS: BLOCKED
+```
+
+Also test:
+
+```text
+command unavailable
+timeout
+non-zero exit
+crash
+malformed output
+```
+
+LoopGoal should never turn an unknown verification result into PASS.
+
+---
+
+# 14. Agent failure/recovery
+
+Simulate:
+
+```text
+Agent starts
+    ↓
+Agent crashes
+```
+
+LoopGoal should preserve:
+
+```text
+state
+task status
+completed work
+evidence
+attempt count
+```
+
+Then:
+
+```bash
+loopgoal resume
+```
+
+should continue from the correct state instead of restarting blindly.
+
+---
+
+# 15. Infinite-loop protection
+
+Test:
+
+```text
+Agent repeatedly changes same file
+→ verify
+→ fails
+→ changes it
+→ fails
+→ ...
+```
+
+LoopGoal must eventually:
+
+```text
+MAX ITERATIONS REACHED
+
+STATUS: BLOCKED
+Reason: verification did not converge
+```
+
+Never let autonomous execution run forever.
+
+---
+
+# 16. Git safety tests
+
+Test:
+
+```text
+uncommitted user changes
+```
+
+before execution.
+
+LoopGoal should detect them.
+
+Also test:
+
+```text
+unexpected modified files
+deleted files
+new files
+renamed files
+```
+
+And verify LoopGoal never accidentally destroys unrelated user work.
+
+---
+
+# 17. Monorepo test
+
+You should absolutely have one:
+
+```text
+repo/
+├── apps/
+│   ├── web/
+│   └── api/
+├── packages/
+│   ├── ui/
+│   └── shared/
+├── services/
+│   └── worker/
+└── docs/
+```
+
+Test that a task targeting:
+
+```text
+apps/web
+```
+
+doesn't incorrectly treat the entire repository as equally relevant.
+
+---
+
+# 18. Cross-language fixture
+
+Eventually:
+
+```text
+frontend → TypeScript
+backend → Go
+worker → Python
+contracts → Rust
+```
+
+The **core LoopGoal logic should remain unchanged**.
+
+Only discovery/analyzer components should understand language-specific structures.
+
+That's a very important architectural test.
+
+---
+
+# 19. Full end-to-end "golden scenario"
+
+You should have one test that represents the entire product.
+
+```text
+USER GOAL
+   ↓
+SCAN
+   ↓
+INVENTORY
+   ↓
+DISCOVER RULES/SKILLS
+   ↓
+BUILD TASK GRAPH
+   ↓
+BUILD DEPENDENCY GRAPH
+   ↓
+MAP FILES
+   ↓
+AGENT EXECUTION
+   ↓
+CHANGE DETECTION
+   ↓
+RESCAN
+   ↓
+RECONCILIATION
+   ↓
+VERIFICATION
+   ↓
+EVIDENCE
+   ↓
+COMPLETION GATE
+```
+
+And deliberately inject failures throughout it.
+
+---
+
+# Your pre-execution gate
+
+I'd eventually make:
+
+```bash
+loopgoal test
+```
+
+run everything required for LoopGoal itself.
+
+And:
+
+```bash
+loopgoal test --smoke
+```
+
+for the fast checks.
+
+Before allowing real autonomous execution:
+
+```text
+┌─────────────────────────────┐
+│     LOOPGOAL PRE-FLIGHT     │
+├─────────────────────────────┤
+│ ✓ Inventory                 │
+│ ✓ Instructions              │
+│ ✓ Skills                    │
+│ ✓ Rules                     │
+│ ✓ Task Graph                │
+│ ✓ Dependency Graph          │
+│ ✓ Symbol Graph              │
+│ ✓ Reconciliation            │
+│ ✓ Evidence                  │
+│ ✓ Verification              │
+│ ✓ State Recovery            │
+│ ✓ Git Safety                │
+│ ✓ Loop Protection           │
+│ ✓ Agent Adapter             │
+└─────────────────────────────┘
+
+READY FOR AUTONOMOUS EXECUTION
+```
+
+### The most important test principle
+
+Don't test only:
+
+> **“Does LoopGoal work?”**
+
+Test:
+
+> **“Can LoopGoal catch itself when it is wrong?”**
+
+Especially test **false positives**:
+
+```text
+Agent says DONE
+      ↓
+LoopGoal finds missing requirement
+      ↓
+BLOCK
+```
+
+If your test suite can reliably demonstrate that behavior across inventory, dependencies, rules, verification, evidence, and reconciliation, then your architecture is actually proving the main promise of LoopGoal rather than just testing its individual packages.

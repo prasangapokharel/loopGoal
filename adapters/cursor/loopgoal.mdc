@@ -1,0 +1,21 @@
+---
+description: Autonomous development loop protocol for Cursor
+globs: *
+alwaysApply: false
+---
+
+# LoopGoal for Cursor
+
+When executing an autonomous improvement or working toward a continuous objective:
+
+1. **Iteration-by-Iteration Execution**:
+   - Focus on ONE bounded improvement or ONE file per iteration.
+   - Do NOT attempt multi-file rewrites in a single iteration.
+
+2. **Empirical Verification**:
+   - Always run the project's verification commands (`npm test`, `pytest`, `go test ./...`, `npm run lint`) using terminal tools before presenting changes.
+   - If tests fail, resolve the failure immediately.
+
+3. **Diff Hygiene**:
+   - Inspect git status/diff.
+   - Ensure changes are minimal, targeted, and do not touch unrelated files or pre-existing uncommitted work.

@@ -47,7 +47,11 @@ function writeFile(dest, content) {
 }
 
 // 1. Resolve source files
-const skillSrc = path.join(ROOT_DIR, '.agents', 'skills', 'loopgoal', 'SKILL.md');
+const skillSrc = [
+  path.join(ROOT_DIR, 'skills', 'loopgoal', 'SKILL.md'),
+  path.join(ROOT_DIR, '.agents', 'skills', 'loopgoal', 'SKILL.md'),
+  path.join(ROOT_DIR, 'skill', 'SKILL.md')
+].find(p => fs.existsSync(p)) || path.join(ROOT_DIR, 'skills', 'loopgoal', 'SKILL.md');
 const ruleSrc = path.join(ROOT_DIR, 'plugins', 'loopgoal', 'rules', 'loopgoal.md');
 const claudeSrc = path.join(ROOT_DIR, 'adapters', 'claude', 'CLAUDE.md');
 const codexSrc = path.join(ROOT_DIR, 'adapters', 'codex', 'CODEX.md');
@@ -147,6 +151,7 @@ if (fs.existsSync(path.join(cwd, '.git')) && cwd !== ROOT_DIR) {
 }
 
 // Target 5: Go CLI Engine (loopgoal binary)
+let goCliInstalled = false;
 try {
   execSync('go version', { stdio: 'ignore' });
   const mainGoPath = path.join(ROOT_DIR, 'cmd', 'loopgoal', 'main.go');
@@ -154,9 +159,40 @@ try {
     console.log('\n\x1b[33mCompiling and installing native Go loopgoal supervisor...\x1b[0m');
     execSync(`go install ./cmd/loopgoal`, { cwd: ROOT_DIR, stdio: 'inherit' });
     console.log(' \x1b[32m✓\x1b[0m Native Go CLI compiled & installed to ~/go/bin/loopgoal');
+    goCliInstalled = true;
   }
 } catch {
-  // Go is not installed or build skipped; Node wrapper will be used
+  // Go compiler not found or build failed; try fetching precompiled release binary
+}
+
+if (!goCliInstalled) {
+  try {
+    const plat = process.platform === 'darwin' ? 'darwin' : (process.platform === 'win32' ? 'windows' : 'linux');
+    const arch = process.arch === 'arm64' ? 'arm64' : 'amd64';
+    const ext = plat === 'windows' ? 'zip' : 'tar.gz';
+    const binExt = plat === 'windows' ? '.exe' : '';
+    const releaseUrl = `https://github.com/prasangapokharel/loopGoal/releases/latest/download/loopgoal-${plat}-${arch}.${ext}`;
+    const targetDir = path.join(HOME, '.local', 'bin');
+    ensureDir(targetDir);
+    const targetBin = path.join(targetDir, `loopgoal${binExt}`);
+
+    if (!fs.existsSync(targetBin)) {
+      console.log(`\n\x1b[33mGo compiler not detected. Downloading pre-compiled supervisor binary for ${plat}/${arch}...\x1b[0m`);
+      const tempArchive = path.join(os.tmpdir(), `loopgoal-${Date.now()}.${ext}`);
+      execSync(`curl -fsSL "${releaseUrl}" -o "${tempArchive}"`, { stdio: 'ignore' });
+      if (ext === 'tar.gz') {
+        execSync(`tar -xzf "${tempArchive}" -C "${targetDir}" loopgoal`, { stdio: 'ignore' });
+        fs.chmodSync(targetBin, 0o755);
+      }
+      try { fs.unlinkSync(tempArchive); } catch {}
+      console.log(` \x1b[32m✓\x1b[0m Native Go CLI downloaded & installed to ${targetBin}`);
+      goCliInstalled = true;
+    } else {
+      goCliInstalled = true;
+    }
+  } catch (dlErr) {
+    console.log(` \x1b[33m! Note:\x1b[0m Go CLI build skipped. In-agent skills (/loopgoal) are fully installed and ready!`);
+  }
 }
 
 console.log(`\n\x1b[32m🎉 LoopGoal installation complete!\x1b[0m`);

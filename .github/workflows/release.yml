@@ -1,0 +1,100 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Package Binaries
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            artifact_name: loopgoal-linux-amd64.tar.gz
+            bin_name: loopgoal
+          - os: linux
+            arch: arm64
+            artifact_name: loopgoal-linux-arm64.tar.gz
+            bin_name: loopgoal
+          - os: darwin
+            arch: amd64
+            artifact_name: loopgoal-darwin-amd64.tar.gz
+            bin_name: loopgoal
+          - os: darwin
+            arch: arm64
+            artifact_name: loopgoal-darwin-arm64.tar.gz
+            bin_name: loopgoal
+          - os: windows
+            arch: amd64
+            artifact_name: loopgoal-windows-amd64.zip
+            bin_name: loopgoal.exe
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build Binary
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: '0'
+        run: |
+          mkdir -p build_out
+          go build -ldflags="-s -w" -o build_out/${{ matrix.bin_name }} ./cmd/loopgoal
+
+      - name: Package Artifact
+        run: |
+          cd build_out
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            zip -j ../${{ matrix.artifact_name }} ${{ matrix.bin_name }} ../README.md ../AGENTS.md
+          else
+            tar -czf ../${{ matrix.artifact_name }} ${{ matrix.bin_name }} -C .. README.md AGENTS.md
+          fi
+          cd ..
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_name }}
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release_artifacts
+          merge-multiple: true
+
+      - name: Generate Checksums
+        run: |
+          cd release_artifacts
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release_artifacts/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true

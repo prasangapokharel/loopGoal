@@ -1,28 +1,59 @@
-# LoopGoal
+<p align="center">
+  <img src="docs/readme/logo.png" alt="LoopGoal Logo" width="140" height="140" />
+</p>
 
-> **The autonomous development supervisor that keeps AI coding agents focused, safe, and productive — iteration by iteration.**
+<h1 align="center">LoopGoal</h1>
 
-LoopGoal solves a core problem with AI coding agents: **they drift**. Without structure, they rewrite entire systems, break working tests, or hallucinate broad changes. LoopGoal enforces a tight, repeatable loop that constrains the agent to **one small, verified, committed improvement per cycle** — forever, until your goal is reached.
+<p align="center">
+  <strong>The autonomous development supervisor that keeps AI coding agents focused, safe, and verifiable — iteration by iteration.</strong>
+</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/loopgoal"><img src="https://img.shields.io/npm/v/loopgoal.svg?style=flat-square&color=black" alt="npm version" /></a>
+  <a href="https://skills.sh"><img src="https://img.shields.io/badge/skills.sh-loopgoal-000000?style=flat-square&logo=vercel" alt="skills.sh" /></a>
+  <a href="https://github.com/prasangapokharel/loopGoal/releases"><img src="https://img.shields.io/github/v/release/prasangapokharel/loopGoal?style=flat-square&color=blue" alt="GitHub release" /></a>
+  <a href="https://go.dev"><img src="https://img.shields.io/badge/go-1.24+-00ADD8?style=flat-square&logo=go" alt="Go Version" /></a>
+  <a href="https://github.com/prasangapokharel/loopGoal/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg?style=flat-square" alt="License" /></a>
+</p>
+
+---
+
+LoopGoal solves the single biggest problem with AI coding agents: **they drift**. 
+
+Without boundaries, AI agents rewrite entire directories, break existing tests, modify unrelated code, or halt after touching just a single file. LoopGoal enforces an empirical, bounded loop that constrains the agent to **one small, verified, committed improvement per iteration** — repeating continuously until your goal is reached and verified with evidence.
 
 ```text
-Observe → Select ONE improvement → Implement → Verify → Review Diff → Commit → Repeat
+Observe → Select ONE Target → Implement → Verify → Review Diff → Commit → Advance Queue → Repeat
 ```
 
-Works with any AI agent (Antigravity, Claude Code, Codex, OpenCode) and any project stack (Go, Python, TypeScript, Rust, Node.js, Java, monorepos).
+Works out-of-the-box with **Google Antigravity**, **Claude Code**, **OpenAI Codex**, **Cursor**, **OpenCode**, and any custom LLM across all technology stacks (**Go**, **TypeScript**, **Python**, **Rust**, **Java**, **Monorepos**).
+
+---
+
+## In Action: Continuous, Verified Execution
+
+Here is LoopGoal autonomously auditing, refactoring, and verifying a multi-file queue in production until 100% of tasks are completed and verified:
+
+<p align="center">
+  <img src="docs/readme/example/image.png" alt="LoopGoal In Action - Multi-file verification and goal reached state" width="100%" />
+</p>
+
+> **Verified Evidence Gate**: LoopGoal rejected premature completion until all 72 production routes compiled, ESLint warnings were 0, TypeScript was clean, and all 28 Jest tests passed.
 
 ---
 
 ## Why LoopGoal Exists
 
 | Without LoopGoal | With LoopGoal |
-|---|---|
-| Agent rewrites 40 files in one shot | One file per bounded iteration |
-| Breaks existing tests silently | Verification gates every commit |
-| Commits broken or unrelated code | Only staged changes from current task |
-| Overwrites your in-progress WIP | Developer work is always preserved |
-| Pushes to remote without warning | Push is permanently disabled |
-| No way to safely stop mid-run | Graceful stop with `loopgoal stop` |
-| No audit trail | Every iteration has a committed diff |
+|:---|:---|
+| Agent rewrites 40 files in one shot | **One file per bounded iteration** |
+| Breaks existing tests silently | **Verification gates every commit (exit code 0 required)** |
+| Commits broken or unrelated code | **Diff review stages only files from current task** |
+| Overwrites your in-progress WIP | **Pre-existing dirty files are detected and untouched** |
+| Stops prematurely after 1 file | **Zero-Premature-Stop: continues until queue is empty** |
+| Pushes to remote without warning | **Push is permanently disabled** |
+| Hard to stop mid-run | **Graceful stop with `loopgoal stop` or `Ctrl+C`** |
+| No audit trail | **Every iteration produces an atomic, conventional commit** |
 
 ---
 
@@ -33,441 +64,246 @@ LoopGoal operates at two complementary levels — choose the one that fits your 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                    LAYER 1 — Agent Skill                        │
-│    Runs inside Antigravity, Claude Code, Codex, etc.            │
+│    Runs inside Antigravity, Claude Code, Codex, Cursor, etc.    │
 │                                                                 │
-│  /loopgoal "improve API reliability"     → starts the loop      │
-│  /loopgoal status                        → shows progress       │
-│  /loopgoal stop                          → halts safely         │
+│  /loopgoal "increase unit test coverage to 80%"  → starts loop  │
+│  /loopgoal status                                → shows queue  │
+│  /loopgoal stop                                  → halts safely │
 │                                                                 │
-│  No binary needed. The agent IS the executor.                   │
+│  No binary required. The AI agent IS the executor.              │
 └──────────────────────────────┬──────────────────────────────────┘
                                │
                                ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                  LAYER 2 — Go Supervisor CLI                    │
-│   Headless process that drives any external CLI agent.          │
+│   Headless daemon that drives external CLI agent processes.     │
 │                                                                 │
-│  loopgoal init    → detect stack, write config                  │
-│  loopgoal run     → launch autonomous loop                      │
-│  loopgoal status  → check iteration, last commit, PID           │
-│  loopgoal stop    → signal graceful shutdown                    │
+│  loopgoal init    → auto-detects stack, writes .loopgoal/       │
+│  loopgoal run     → launches autonomous supervisor              │
+│  loopgoal status  → live iteration, PID, last commit            │
+│  loopgoal stop    → sends graceful shutdown signal              │
 │                                                                 │
-│  Use for CI pipelines, overnight runs, external agent CLIs.     │
+│  Ideal for CI/CD pipelines, background daemons, overnight runs. │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
----
+## Installation
 
-## Install
+### 1. Via Skills.sh (AI Agent Skills Ecosystem)
+Install directly into your agent environment using the open agent skills registry:
+```bash
+npx skills add prasangapokharel/loopGoal
+```
 
-Install LoopGoal across all your AI coding agents in one command:
-
+### 2. Via NPX / NPM (Universal One-Click)
+Automatically configures skills & rules across Antigravity, Claude Code, Codex, and Cursor:
 ```bash
 npx loopgoal install
 ```
+Or install the global CLI:
+```bash
+npm install -g loopgoal
+```
 
-Or via curl (macOS & Linux):
+### 3. Via Curl Installer (macOS & Linux)
 ```bash
 curl -fsSL https://raw.githubusercontent.com/prasangapokharel/loopGoal/main/install.sh | bash
 ```
 
-Or via Go:
+### 4. Via Go
 ```bash
 go install github.com/prasangapokharel/loopGoal/cmd/loopgoal@latest
 ```
+
+### 5. Precompiled Standalone Binaries
+Download standalone release archives for Linux (`amd64`, `arm64`), macOS (`amd64`, `arm64` Apple Silicon), and Windows from the [GitHub Releases Page](https://github.com/prasangapokharel/loopGoal/releases/latest).
 
 ---
 
 ## Quick Start
 
-### Option A — Use Inside Your AI Agent (Fastest)
+### Option A — In-Agent Skill (Instant)
 
 #### 1. Google Antigravity (AGY)
 ```bash
-# Install globally for all projects:
+# Install globally:
 mkdir -p ~/.gemini/config/skills/loopgoal
-cp adapters/antigravity/SKILL.md ~/.gemini/config/skills/loopgoal/SKILL.md
+cp skills/loopgoal/SKILL.md ~/.gemini/config/skills/loopgoal/SKILL.md
 
-# Or install for current project only:
+# Or in project repository:
 mkdir -p .agents/skills/loopgoal
-cp adapters/antigravity/SKILL.md .agents/skills/loopgoal/SKILL.md
+cp skills/loopgoal/SKILL.md .agents/skills/loopgoal/SKILL.md
 ```
-**Run in Chat:**
+**Trigger in chat:**
 ```text
 /loopgoal Refactor backend/api/v1/ and write unit tests in tests/unit/
 ```
 
 #### 2. Claude Code (CLI)
 ```bash
-# Install globally for all projects:
-mkdir -p ~/.claude/commands
+mkdir -p ~/.claude/commands ~/.claude/skills/loopgoal
 cp adapters/claude/CLAUDE.md ~/.claude/commands/loopgoal.md
-
-# Or install for current project only:
-mkdir -p .claude/commands
-cp adapters/claude/CLAUDE.md .claude/commands/loopgoal.md
+cp skills/loopgoal/SKILL.md ~/.claude/skills/loopgoal/SKILL.md
 ```
-**Run in Claude CLI:**
+**Trigger in chat:**
 ```text
 /loopgoal Refactor backend/api/v1/ and write unit tests in tests/unit/
 ```
 
-#### 3. Cursor / Roo Code / Cline
+#### 3. Cursor
 ```bash
-# Install as a Cursor Rule:
 mkdir -p .cursor/rules
-cp adapters/antigravity/SKILL.md .cursor/rules/loopgoal.mdc
+cp adapters/cursor/loopgoal.mdc .cursor/rules/loopgoal.mdc
 ```
-**Run in Composer / Chat:**
+**Trigger in Composer:**
 ```text
 @loopgoal Refactor backend/api/v1/ and write unit tests in tests/unit/
 ```
 
 ---
 
-### Option B — Standalone CLI Supervisor
+### Option B — Standalone Supervisor CLI
 
-For headless execution, CI integration, or driving external CLI agents (Antigravity `agy`, Claude `claude`, Codex `codex`, OpenCode `opencode`):
+For background runs, overnight execution, or driving CLI agents (`agy`, `claude`, `codex`, `opencode`):
 
-**Step 1 — Build and install the binary:**
 ```bash
-go install ./cmd/loopgoal
-```
-
-**Step 2 — Initialize your project:**
-```bash
-cd /path/to/your-project
+# 1. Initialize project (.loopgoal/ config & state)
 loopgoal init
-```
-LoopGoal auto-detects your stack and writes `.loopgoal/config.yaml`:
-```text
-✓ Initialized LoopGoal in .loopgoal/ (Go module detected)
-  Config: .loopgoal/config.yaml
-  State:  .loopgoal/state.json
-```
 
-**Step 3 — Run pre-flight checks:**
-```bash
+# 2. Run pre-flight checks (inventory, rules, agent, git)
 loopgoal test --smoke
-```
 
-**Step 4 — Inspect inventory & plan:**
-```bash
-loopgoal scan   # View all discovered files categorized
-loopgoal plan   # View active task map & pending queue
-```
+# 3. View discovered inventory & task plan
+loopgoal scan
+loopgoal plan
 
-**Step 5 — Start the autonomous loop:**
-```bash
+# 4. Start the autonomous loop
 loopgoal run
-```
 
-**Step 6 — In another terminal, monitor live progress:**
-```bash
+# 5. Monitor in another terminal
 loopgoal status
-```
 
-**Step 7 — Halt cleanly whenever you want:**
-```bash
+# 6. Stop cleanly at any time
 loopgoal stop
-```
-
-**Step 3 — Edit the config to your goal:**
-```yaml
-# .loopgoal/config.yaml
-goal: >
-  Increase test coverage for all edge cases
-  in the authentication and payment services.
-
-agent:
-  command: "codex"
-
-verify:
-  - "go test ./..."
-  - "go vet ./..."
-
-limits:
-  iterations: 20
-  max_retries: 3
-```
-
-**Step 4 — Start the autonomous loop:**
-```bash
-loopgoal run
-```
-
-**Step 5 — In another terminal, monitor live progress:**
-```bash
-loopgoal status
-```
-```text
-LoopGoal Status
-────────────────────────────
-Goal:        Increase test coverage for all edge cases
-Iteration:   7
-Status:      running (PID: 23145)
-Last task:   add nil pointer test for token validator
-Last commit: a1b2c3d
-Last check:  passed
-Started:     2026-09-17T22:00:00Z
-Updated:     2026-09-17T22:35:00Z
-```
-
-**Step 6 — Halt cleanly whenever you want:**
-```bash
-loopgoal stop
-```
-```text
-✓ Sent graceful stop signal to LoopGoal (PID: 23145).
 ```
 
 ---
 
 ## Real-World Use Cases
 
-### 🔴 Problem 1: "My test coverage is stuck at 40% and writing tests for hundreds of edge cases manually is impossible"
+### 🔴 Problem 1: "My test coverage is stuck at 40% and writing tests for edge cases manually is tedious"
+**Root Cause**: Writing comprehensive unit tests is context-heavy; unconstrained AI agents hallucinate massive test files that don't compile.
 
-**Root Cause**: Writing unit tests is repetitive and context-heavy — humans avoid it; unconstrained AI agents over-generate unrelated tests.
-
-**Solution — LoopGoal targeted coverage expansion:**
+**Solution — LoopGoal targeted test expansion:**
 ```text
-/loopgoal "increase test coverage to 80% — one edge case per iteration"
+/loopgoal "increase test coverage to 85% — one edge case per iteration"
 ```
-
-| Iteration | What the agent identified | What it fixed | Verification |
+| Iteration | Target File | Change Made | Verification |
 |---|---|---|---|
-| 1 | Nil pointer in `auth/token.go:ValidateToken` uncovered | Added `TestValidateToken_NilInput` | `go test ./...` ✅ |
-| 2 | DB timeout in `store/pool.go` not tested | Added `TestPool_ConnectionTimeout` with mock | `go test ./...` ✅ |
-| 3 | Malformed JSON in `api/handler.go` not handled | Added `TestHandleRequest_MalformedJSON` | `go test ./...` ✅ |
-| 4 | Race condition in `worker/queue.go` | Added `TestQueue_ConcurrentPush` with `-race` flag | `go test -race ./...` ✅ |
-| ... | Continues autonomously... | | |
-
-**Outcome**: Coverage grows from 40% → 80%+, one test at a time, each commit independently reviewable.
+| 1 | `auth/token.go` | Added `TestValidateToken_NilInput` | `go test ./...` ✅ |
+| 2 | `store/pool.go` | Added `TestPool_ConnectionTimeout` with mock | `go test ./...` ✅ |
+| 3 | `api/handler.go`| Added `TestHandleRequest_MalformedJSON` | `go test ./...` ✅ |
+| 4 | `worker/queue.go` | Added concurrent race test with `-race` flag | `go test -race ./...` ✅ |
+| ... | Continues autonomously until target files are covered | | |
 
 ---
 
-### 🔴 Problem 2: "Our codebase has years of technical debt — deprecated APIs, inconsistent error handling, dead code — and we can't afford to refactor everything at once"
+### 🔴 Problem 2: "Our codebase has accumulated technical debt and we can't afford to break production"
+**Root Cause**: Big-bang refactors cause regressions. Manual incremental changes stall due to developer fatigue.
 
-**Root Cause**: Big-bang refactors break things. Refactoring one function at a time takes months manually.
-
-**Solution — LoopGoal incremental debt elimination:**
+**Solution — LoopGoal bounded debt elimination:**
 ```text
 /loopgoal "modernize error handling: replace deprecated helpers, standardize fmt.Errorf wrapping"
 ```
-
-| Iteration | File targeted | Change made | Risk |
+| Iteration | File | Improvement | Risk |
 |---|---|---|---|
-| 1 | `internal/config/config.go` | `ioutil.ReadFile` → `os.ReadFile` | Zero — API-identical |
-| 2 | `internal/auth/handler.go` | Raw `errors.New` → `fmt.Errorf("%w", err)` for wrapping | Zero |
-| 3 | `internal/user/service.go` | Duplicate `validateEmail()` helpers consolidated into one | Zero |
-| 4 | `internal/api/middleware.go` | `log.Printf` → structured `slog.Error` | Zero |
-| ... | Continues autonomously... | | |
-
-**Outcome**: Every commit is atomic, reviewable, and passes all tests. Debt is eliminated with no regression risk.
+| 1 | `config/config.go` | Replaced `ioutil.ReadFile` with `os.ReadFile` | Zero (API identical) |
+| 2 | `auth/handler.go` | Replaced raw `errors.New` with `fmt.Errorf("%w", err)` | Zero |
+| 3 | `user/service.go` | Consolidated duplicate email validation helpers | Zero |
+| 4 | `api/middleware.go` | Migrated `log.Printf` to structured `slog.Error` | Zero |
 
 ---
 
-### 🔴 Problem 3: "I want to run AI-assisted improvement overnight, but I'm scared the agent will rewrite everything and break production code"
+### 🔴 Problem 3: "I want to run AI development overnight without waking up to broken code"
+**Root Cause**: Unsupervised agents make unchecked assumptions, push broken commits, or overwrite working directories.
 
-**Root Cause**: Unconstrained AI agents given broad goals will make large sweeping changes, break tests, and commit broken code if not stopped.
-
-**Solution — LoopGoal's safety guarantees make overnight runs safe:**
-
+**Solution — LoopGoal's 7-Layer Safety System:**
 ```bash
-# Start before bed
-loopgoal run --iterations 50
+loopgoal run --iterations 30
 ```
 
-LoopGoal enforces a strict 7-layer safety system:
-
-| Safety Layer | What it prevents |
-|---|---|
-| **One improvement per iteration** | No broad rewrites or multi-file sprints |
-| **Verification gate** | No broken commit ever reaches git history |
-| **Retry loop (max 3)** | Transient failures are fixed; persistent failures halt cleanly |
-| **Diff isolation** | Only files from current task are staged — not your WIP |
-| **Developer change preservation** | Pre-existing dirty files are detected and excluded |
-| **No push** | Remote repository is never touched |
-| **Stop signal** | `loopgoal stop` or `Ctrl+C` halts cleanly after current iteration |
-
-```text
-# What you wake up to:
-git log --oneline -10
-a7f3b2c test(auth): add expired token edge case
-92e1d4a test(store): cover DB timeout with mock
-3c5f8e1 refactor(config): replace ioutil with os.ReadFile
-7b1a9c2 fix(api): standardize 400 error response format
-d4e2f1b test(worker): add concurrent queue race test
-...
-```
-
-**Outcome**: 8 hours of sleep = 20–50 clean, reviewable, tested commits. No surprises.
+1. **One Bounded Change**: Max 1 target per iteration.
+2. **Verification Gate**: Commit only if `verify` commands exit with code 0.
+3. **Self-Correction Retry**: Agent receives exact compiler/test error logs and fixes them immediately.
+4. **Diff Isolation**: Only files from the current iteration are staged.
+5. **WIP Preservation**: Pre-existing dirty files are fingerprinted and never touched.
+6. **No Remote Push**: Commits are strictly local.
+7. **Evidence Gate**: Rejects premature completion until all files pass empirical verification.
 
 ---
 
-### 🔴 Problem 4: "We run Go, Python, TypeScript, and Rust microservices — we can't use different tools for each"
+### 🔴 Problem 4: "We run Go, Python, TypeScript, and Rust — we need one consistent protocol"
+LoopGoal is **100% project-agnostic**. The loop engine stays the same; only the `verify:` commands change:
 
-**Root Cause**: Most AI automation tools are language-specific. Teams waste time maintaining separate automation pipelines per stack.
-
-**Solution — LoopGoal is 100% project-agnostic:**
-
-**Go microservice:**
 ```yaml
+# Go Project
 verify:
   - "go test ./..."
   - "go vet ./..."
-```
 
-**Python Django API:**
-```yaml
+# Python Django / FastAPI
 verify:
   - "pytest"
   - "ruff check ."
   - "mypy src/"
-```
 
-**Next.js / TypeScript frontend:**
-```yaml
+# Next.js / TypeScript
 verify:
   - "npm run lint"
   - "npm run typecheck"
   - "npm test"
-```
 
-**Rust service:**
-```yaml
+# Rust Cargo
 verify:
   - "cargo test"
   - "cargo clippy -- -D warnings"
-```
 
-**Monorepo with all of the above:**
-```yaml
+# Polyglot Monorepo
 verify:
   - "go test ./services/..."
   - "pytest backend/"
   - "npm test --workspace=frontend"
-  - "cargo test -p payments"
 ```
-
-The loop engine is identical. Only the `verify:` commands differ. The same `loopgoal` binary manages all of them.
 
 ---
 
-### 🔴 Problem 5: "We use custom code standards (cursor rules, agent rules, skill files) — how do we make sure the AI follows ALL of them?"
+## Command Reference
 
-**Root Cause**: AI agents often ignore `.cursor/rules/*.mdc`, `AGENTS.md`, or `.agents/skills/` files unless explicitly forced to read them at every iteration.
+### CLI Supervisor (`loopgoal`)
 
-**Solution — LoopGoal's Audit Layer enforces compliance automatically:**
+| Command | Description |
+|:---|:---|
+| `loopgoal init` | Initialize `.loopgoal/config.yaml` and `.loopgoal/state.json` |
+| `loopgoal init --force` | Overwrite existing configuration with freshly detected defaults |
+| `loopgoal run` | Execute the autonomous development supervisor loop |
+| `loopgoal run --iterations <N>` | Run up to a specific number of iterations |
+| `loopgoal scan` | Inspect and categorize all repository files |
+| `loopgoal plan` | Display active task map, remaining queue, and verified evidence |
+| `loopgoal test` | Run pre-flight diagnostics on Git, rules, inventory, and agent |
+| `loopgoal status` | Display current state, PID, last commit, and remaining queue |
+| `loopgoal stop` | Request graceful stop of a running loop |
+| `loopgoal version` | Display version and architecture |
 
-Before each iteration, LoopGoal's `audit` package:
-1. **Discovers all rule files** in the project:
-   - `AGENTS.md`, `GEMINI.md`, `CLAUDE.md`
-   - `.cursor/rules/*.mdc`
-   - `.agents/rules/*.md`
-   - `.agents/skills/*/SKILL.md`
-2. **Runs grep/ripgrep pattern sweeps** across all git-tracked source files to detect violations
-3. **Runs static analysis** (`go vet`, `ruff check`, `tsc --noEmit`, `cargo clippy`) automatically
-4. **Injects findings into the agent prompt** so the agent knows exactly what to fix
+### Slash Commands (In-Agent Chat)
 
-```text
-Iteration 5 of 20
-→ Auditing rules: AGENTS.md, .cursor/rules/naming.mdc, .agents/skills/loopgoal/SKILL.md
-→ Grep scan: found 2 violations
-    internal/api/handler.go:42  [camelCase]  func handleUserRequest()
-    internal/store/db.go:88     [TODO]       // TODO: fix this
-→ Running static checks: go vet ./... PASSED
-→ Implementing: rename handleUserRequest → HandleUserRequest, resolve TODO
-✓ Verification: go test ./... PASSED
-✓ Committed: refactor(api): enforce naming and resolve TODOs per AGENTS.md
-```
-
-**Outcome**: Every file in the repository eventually reaches 100% compliance with your project rules — automatically.
-
----
-
-### 🔴 Problem 6: "I run AI agents against large codebases but they only look at one file and then stop"
-
-**Root Cause**: AI agents in chat interfaces naturally end their turn after one action. Without explicit queue management, they stop prematurely.
-
-**Solution — LoopGoal's Zero-Premature-Stop guarantee:**
-
-LoopGoal maintains a `remaining_queue` in `.loopgoal/state.json`. The protocol enforces:
-
-```json
-{
-  "goal": "enforce naming conventions across all files",
-  "iteration": 3,
-  "status": "running",
-  "remaining_queue": [
-    "internal/auth/handler.go",
-    "internal/store/db.go",
-    "internal/api/middleware.go"
-  ],
-  "completed_files": [
-    "internal/config/config.go",
-    "internal/loop/loop.go"
-  ]
-}
-```
-
-- `"status"` stays `"running"` until `"remaining_queue"` is **completely empty**
-- After each file, the agent immediately starts the next — **no waiting for user input**
-- If interrupted (`/loopgoal stop`), state is preserved — resuming with `/loopgoal` picks up exactly where it left off
-
-**Outcome**: Every file in scope gets processed. The agent never stops early or needs prompting to continue.
-
----
-
-## Supported Agents & Adapters
-
-Install the LoopGoal adapter for your AI coding agent:
-
-| Agent | Adapter | Installation |
-|---|---|---|
-| **Google Antigravity** | [`adapters/antigravity/SKILL.md`](./adapters/antigravity/SKILL.md) | Copy to `.agents/skills/loopgoal/SKILL.md` |
-| **Claude Code** | [`adapters/claude/CLAUDE.md`](./adapters/claude/CLAUDE.md) | Copy to `CLAUDE.md` or `.claude/commands/loopgoal.md` |
-| **OpenAI Codex / OpenCode** | [`adapters/codex/CODEX.md`](./adapters/codex/CODEX.md) | Follow instructions in file |
-| **Any LLM / Custom Agent** | [`adapters/generic/SYSTEM_PROMPT.md`](./adapters/generic/SYSTEM_PROMPT.md) | Inject as system prompt |
-
-### Slash Commands (All Agents)
-
-| Command | What it does |
-|---|---|
+| Command | Description |
+|:---|:---|
 | `/loopgoal <goal>` | Start autonomous loop toward the specified goal |
-| `/loopgoal` | Resume from `.loopgoal/state.json` if items remain in queue |
-| `/loopgoal status` | Print current iteration, status, last commit, and remaining queue |
-| `/loopgoal stop` | Write `stopped` status to state file and halt after current iteration |
-
----
-
-## CLI Reference
-
-```bash
-# Build
-go build -o loopgoal ./cmd/loopgoal
-
-# Initialize (auto-detects Go / Node / Python / Rust)
-loopgoal init
-loopgoal init --force          # overwrite existing config
-loopgoal init --dir ./myrepo   # specify project directory
-
-# Run the autonomous loop
-loopgoal run
-loopgoal run --iterations 10
-loopgoal run --dir ./myrepo
-loopgoal run --config ./custom-config.yaml
-
-# Check status
-loopgoal status
-loopgoal status --dir ./myrepo
-
-# Request graceful stop
-loopgoal stop
-loopgoal stop --dir ./myrepo
-```
+| `/loopgoal` | Resume autonomous loop from current `.loopgoal/state.json` queue |
+| `/loopgoal status` | Print current iteration, status, last commit, and remaining files |
+| `/loopgoal stop` | Set status to `stopped` and gracefully finish after current task |
 
 ---
 
@@ -475,56 +311,35 @@ loopgoal stop --dir ./myrepo
 
 ```yaml
 # .loopgoal/config.yaml
-
 goal: >
   Continuously improve this project with small,
   safe, production-quality changes.
 
 agent:
-  command: "codex"          # any CLI command
-  args: []                  # optional CLI arguments
-                            # use {task} or {prompt} as placeholder for the task prompt
+  command: "agy"                             # agy, claude, codex, opencode, or any command
+  args:
+    - "--dangerously-skip-permissions"       # required for headless operation
 
 verify:
-  - "go test ./..."         # all commands must exit 0 for a commit to proceed
+  - "go test ./..."                          # sequential verification checks (fail-fast)
   - "go vet ./..."
 
 limits:
-  iterations: 20            # maximum number of loop cycles
-  max_retries: 3            # max fix attempts per iteration when verification fails
+  iterations: 20                             # maximum iterations per run (0 = unlimited)
+  max_retries: 3                             # fix attempts per iteration on verify failure
 ```
-
-### Configuration Tips
-
-- Set `iterations: 0` to run indefinitely until the goal is reached or you stop manually.
-- Use `max_retries: 0` to halt immediately on verification failure without retry.
-- Verification commands are run sequentially — fail-fast on first error.
-- The `{task}` placeholder in `args` is replaced with the full iteration prompt at runtime.
 
 ---
 
-## Iteration Rules & Safety Guarantees
+## Supported Agents & Adapters
 
-Every iteration follows this strict sequence — no exceptions:
-
-```text
-1. INSPECT   → git status, git diff, identify pre-existing user changes
-2. SELECT    → one small, bounded improvement toward the goal
-3. IMPLEMENT → write code changes
-4. VERIFY    → run all configured commands (exit 0 = pass)
-5. RETRY     → if verify fails: send error output to agent, fix, re-verify (up to max_retries)
-6. DIFF      → confirm changes are isolated to current task only
-7. STAGE     → git add <changed files from this iteration only>
-8. COMMIT    → git commit -m "<conventional commit message>"
-9. PERSIST   → write updated state to .loopgoal/state.json
-10. ADVANCE  → next iteration, or halt if goal reached / limit hit / stopped
-```
-
-**Hard rules that are never bypassed:**
-- `git push` is **permanently disabled**
-- `git reset --hard` and `git clean -fd` are **forbidden**
-- Pre-existing uncommitted files are **never staged**
-- A commit is **never created** when verification is failing
+| Agent | Adapter | Setup |
+|:---|:---|:---|
+| **Google Antigravity** | [`adapters/antigravity/SKILL.md`](./adapters/antigravity/SKILL.md) | Copy to `~/.gemini/config/skills/loopgoal/` or `.agents/skills/` |
+| **Claude Code** | [`adapters/claude/CLAUDE.md`](./adapters/claude/CLAUDE.md) | Copy to `CLAUDE.md` or `.claude/commands/loopgoal.md` |
+| **OpenAI Codex** | [`adapters/codex/CODEX.md`](./adapters/codex/CODEX.md) | Follow instructions in file |
+| **Cursor** | [`adapters/cursor/loopgoal.mdc`](./adapters/cursor/loopgoal.mdc) | Copy to `.cursor/rules/loopgoal.mdc` |
+| **Generic LLM** | [`adapters/generic/SYSTEM_PROMPT.md`](./adapters/generic/SYSTEM_PROMPT.md) | Inject as system prompt |
 
 ---
 
@@ -533,146 +348,60 @@ Every iteration follows this strict sequence — no exceptions:
 ```text
 loopgoal/
 ├── cmd/loopgoal/
-│   └── main.go                 # CLI entrypoint
+│   └── main.go                 # Minimal CLI entrypoint
 ├── internal/
-│   ├── agent/                  # Agent interface & CommandAgent (streaming output)
-│   ├── audit/                  # Rule discovery, grep/rg compliance scanning
-│   ├── cli/                    # init / run / status / stop command handlers
-│   ├── config/                 # YAML config parser, validation, defaults
-│   ├── detect/                 # Auto-detect Go / Node / Python / Rust stack
-│   ├── git/                    # Git wrapper: status, diff, stage, commit (no push)
-│   ├── loop/                   # Autonomous supervisor loop engine
-│   ├── inventory/              # Empirical repository scanner & classification
-│   ├── loop/                   # Core autonomous engine
-│   ├── reconcile/              # Expected vs actual diff reconciliation
-│   ├── resolve/                # Cross-platform binary resolution & headless flags
-│   ├── state/                  # JSON state persistence with atomic writes
-│   ├── taskmap/                # Bipartite task/file graph & evidence gate
-│   └── verify/                 # Project-agnostic verification runner
-├── tests/
-│   ├── agent/                  # Agent streaming & output parsing tests
-│   ├── audit/                  # Rule discovery & grep compliance tests
-│   ├── cli/                    # CLI integration tests (init/run/scan/plan/test/status/stop)
-│   ├── config/                 # Config load/save/validation tests
-│   ├── detect/                 # Stack autodetection tests
-│   ├── e2e/                    # End-to-end loop tests (false-done, monorepo, polyglot)
-│   ├── git/                    # Git safety & isolation tests
-│   ├── inventory/              # File classification & inventory scan tests
-│   ├── loop/                   # Autonomous loop engine unit tests
-│   ├── reconcile/              # Reconciliation & dynamic discovery tests
-│   ├── resolve/                # Path resolution & install hint tests
-│   ├── state/                  # State persistence tests
-│   ├── taskmap/                # Bipartite graph & evidence gate tests
-│   └── verify/                 # Verification runner tests
-├── adapters/
-│   ├── antigravity/SKILL.md    # Antigravity agent adapter
-│   ├── claude/CLAUDE.md        # Claude Code adapter
-│   ├── codex/CODEX.md          # Codex / OpenCode adapter
-│   └── generic/SYSTEM_PROMPT.md # Universal LLM system prompt
-├── .agents/
-│   └── skills/loopgoal/
-│       └── SKILL.md            # Active Antigravity skill
-├── go.mod
-├── go.sum
+│   ├── agent/                  # Agent interface & CommandAgent (streaming stdout)
+│   ├── audit/                  # Rule discovery, grep pattern sweeps, static checks
+│   ├── cli/                    # CLI command handlers (init/run/scan/plan/test/status/stop/version)
+│   ├── config/                 # YAML config parser & defaults
+│   ├── detect/                 # Project stack autodetection (Go/Node/Python/Rust)
+│   ├── git/                    # Safe Git operations (commit, stage, diff, snapshot; NO push)
+│   ├── inventory/              # Deterministic repository scanner & file role classification
+│   ├── loop/                   # Autonomous supervisor engine
+│   ├── reconcile/              # Expected vs actual diff reconciliation & evidence tracking
+│   ├── resolve/                # Cross-platform binary discovery & headless flags
+│   ├── state/                  # Atomic JSON state persistence with PID tracking
+│   ├── taskmap/                # Bipartite Task-to-File graph & evidence gate
+│   └── verify/                 # Sequential verification test runner
+├── adapters/                   # Adapters for Antigravity, Claude, Codex, Cursor
+├── plugins/                    # Antigravity / Gemini plugin bundle
+├── skills/loopgoal/            # Skills.sh / Agent skills standard directory
+├── tests/                      # 16 test packages covering unit, integration & E2E scenarios
+├── install.sh                  # Universal shell installer with binary fallback
+├── package.json                # NPM package specification
 └── README.md
 ```
 
 ---
 
-## Running Tests
+## Testing & Quality Assurance
 
 ```bash
-# Run all 14 test packages
-go test ./...
-
-# Run with verbose output
+# Run all 16 test packages
 go test -v ./...
 
-# Run pre-flight CLI diagnostics
+# Run pre-flight system diagnostics
 loopgoal test --smoke
 ```
 
-All 14 test packages pass. Zero `go vet` warnings.
-
-```text
-ok  loopgoal/tests/agent      — streaming, output parsing, placeholder substitution
-ok  loopgoal/tests/audit      — rule discovery, grep patterns, report formatting
-ok  loopgoal/tests/cli        — init/run/scan/plan/test/status/stop integration
-ok  loopgoal/tests/config     — YAML load/save/validate/defaults
-ok  loopgoal/tests/detect     — Go/Node/Python/Rust/generic detection
-ok  loopgoal/tests/e2e        — false-done prevention, monorepo targeting, polyglot, verify→fix cycle
-ok  loopgoal/tests/git        — IsRepo, staged/commit isolation
-ok  loopgoal/tests/inventory  — repository scanning, role classification
-ok  loopgoal/tests/loop       — successful iterations, retry, pre-existing change preservation
-ok  loopgoal/tests/reconcile  — missing/unexpected diff detection, dynamic discovery
-ok  loopgoal/tests/resolve    — cross-platform path resolution, install hints
-ok  loopgoal/tests/state      — init/load/save/status transitions
-ok  loopgoal/tests/taskmap    — bipartite task/file graph, evidence gate
-ok  loopgoal/tests/verify     — pass/fail command execution
-```
+Every commit is gated by our comprehensive test suite:
+- `tests/agent` — Streaming output, signal parsing, placeholder expansion
+- `tests/audit` — Rule discovery, grep sweeps, static analyzers
+- `tests/cli` — All CLI commands (`init`, `run`, `scan`, `plan`, `test`, `status`, `stop`, `version`)
+- `tests/config` — YAML parsing, validation, presets
+- `tests/detect` — Multi-stack project detection
+- `tests/e2e` — False-done prevention, monorepos, polyglot workflows, verify-fix cycles
+- `tests/git` — Git safety, isolation, snapshot protection
+- `tests/inventory` — Deterministic scanning and classification
+- `tests/loop` — Autonomous supervisor engine cycles
+- `tests/reconcile` — Diff reconciliation & dynamic task expansion
+- `tests/resolve` — Platform binary resolution & install hints
+- `tests/state` — Atomic state recovery and transitions
+- `tests/taskmap` — Task graph and evidence validation
+- `tests/verify` — Sequential command runner
 
 ---
 
-## Completion States
+## License
 
-| Status | Meaning |
-|---|---|
-| `idle` | Initialized but not yet started |
-| `running` | Autonomous loop is active |
-| `completed` | Iteration limit reached; goal not explicitly flagged |
-| `goal_reached` | Agent confirmed the goal is fully achieved |
-| `stopped` | Halted by user (`loopgoal stop` or `Ctrl+C`) |
-| `blocked` | Agent cannot make progress; fix loop exhausted |
-| `failed` | Unrecoverable error during execution |
-
----
-
-## Architecture
-
-```text
-cmd/loopgoal
-      │
-      ▼
-   internal/cli          ← command dispatcher
-      │
-      ▼
-   internal/loop         ← autonomous loop engine
-      │
- ┌────┼────────┬──────────┐
- ▼    ▼        ▼          ▼
-agent git    verify     audit
- │
- ▼
-CommandAgent (streaming)
- │
- ▼
-External CLI (codex / agy / claude / opencode / any command)
-```
-
-The loop engine is decoupled from every agent implementation. To add a new agent, implement one interface:
-
-```go
-type Agent interface {
-    Run(ctx context.Context, task string) (Result, error)
-}
-```
-
----
-
-## MVP Non-Goals
-
-The following are **explicitly not implemented** to keep the core loop focused and reliable:
-
-- Web dashboard or GUI
-- Cloud service or user accounts
-- Remote agent marketplace
-- Automatic `git push`
-- Vector database or complex AI memory
-- Distributed workers
-- Plugin marketplace
-
-The MVP proves that the autonomous development loop itself is reliable. Extensions come later.
-
----
-
-*Built with Go. Local-first. No cloud. No telemetry. Just clean, verifiable iterations.*
+MIT © [Prasanga Pokharel](https://github.com/prasangapokharel)

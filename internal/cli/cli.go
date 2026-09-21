@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -23,6 +24,9 @@ import (
 	"loopgoal/internal/taskmap"
 	"loopgoal/internal/verify"
 )
+
+// Version is the current semantic release version of LoopGoal.
+const Version = "1.0.1"
 
 // Execute handles CLI command dispatch.
 func Execute(args []string) error {
@@ -49,6 +53,9 @@ func Execute(args []string) error {
 		return RunStatus(cmdArgs)
 	case "stop":
 		return RunStop(cmdArgs)
+	case "version", "--version", "-v":
+		PrintVersion()
+		return nil
 	case "help", "--help", "-h":
 		PrintUsage()
 		return nil
@@ -56,6 +63,11 @@ func Execute(args []string) error {
 		PrintUsage()
 		return fmt.Errorf("unknown command: %s", command)
 	}
+}
+
+// PrintVersion prints the CLI version and architecture to stdout.
+func PrintVersion() {
+	fmt.Printf("loopgoal v%s (%s/%s)\n", Version, runtime.GOOS, runtime.GOARCH)
 }
 
 // PrintUsage prints CLI instructions to stdout.
@@ -73,6 +85,7 @@ Commands:
   test      Execute pre-flight gate checks (inventory, rules, agent, git)
   status    Display current execution state
   stop      Request graceful termination of a running loop
+  version   Display LoopGoal version
   help      Show this help message`)
 }
 

@@ -1,14 +1,15 @@
 {
   "name": "loopgoal",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Autonomous development loop plugin & CLI supervisor for AI coding agents (Antigravity, Gemini, Claude Code, Codex, Cursor)",
   "main": "bin/loopgoal.js",
   "bin": {
-    "loopgoal": "./bin/loopgoal.js"
+    "loopgoal": "bin/loopgoal.js"
   },
   "scripts": {
     "install-plugin": "node bin/install.js",
-    "test": "go test ./..."
+    "test": "go test ./...",
+    "prepack": "npm test"
   },
   "repository": {
     "type": "git",
@@ -18,6 +19,8 @@
     "ai-agent",
     "autonomous-agent",
     "coding-agent",
+    "skills",
+    "skills-sh",
     "antigravity",
     "gemini",
     "claude-code",
@@ -37,6 +40,8 @@
     "bin",
     "plugins",
     "adapters",
+    "skills",
+    "skill",
     ".agents",
     "install.sh",
     "AGENTS.md",

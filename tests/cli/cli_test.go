@@ -135,3 +135,12 @@ func TestCLIExecuteHelpAndErrors(t *testing.T) {
 		t.Error("expected error on unknown command, got nil")
 	}
 }
+
+func TestCLIVersion(t *testing.T) {
+	for _, flag := range []string{"version", "--version", "-v"} {
+		if err := cli.Execute([]string{flag}); err != nil {
+			t.Errorf("cli.Execute(%q) failed: %v", flag, err)
+		}
+	}
+}
+

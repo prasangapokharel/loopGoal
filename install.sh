@@ -63,18 +63,44 @@ echo -e " ${GREEN}✓${NC} Codex adapter installed to ${CODEX_DIR}"
 # 4. If inside a git repository, configure local workspace
 if [ -d ".git" ]; then
     echo -e "${YELLOW}Configuring current workspace...${NC}"
-    mkdir -p .agents/skills/loopgoal .agents/rules .cursor/rules
+    mkdir -p .agents/skills/loopgoal skills/loopgoal .agents/rules .cursor/rules
     curl -fsSL "${REPO_RAW}/.agents/skills/loopgoal/SKILL.md" -o .agents/skills/loopgoal/SKILL.md 2>/dev/null || true
+    curl -fsSL "${REPO_RAW}/.agents/skills/loopgoal/SKILL.md" -o skills/loopgoal/SKILL.md 2>/dev/null || true
     curl -fsSL "${REPO_RAW}/plugins/loopgoal/rules/loopgoal.md" -o .agents/rules/loopgoal.md 2>/dev/null || true
     curl -fsSL "${REPO_RAW}/adapters/cursor/loopgoal.mdc" -o .cursor/rules/loopgoal.mdc 2>/dev/null || true
     echo -e " ${GREEN}✓${NC} Workspace initialized with LoopGoal skills and rules"
 fi
 
-# 5. Compile and install Go binary if Go exists
+# 5. Native Go CLI supervisor installation
 if command -v go &> /dev/null; then
     echo -e "${YELLOW}Go detected! Installing native loopgoal CLI...${NC}"
     go install github.com/prasangapokharel/loopGoal/cmd/loopgoal@latest 2>/dev/null || true
     echo -e " ${GREEN}✓${NC} Native CLI installed to ~/go/bin/loopgoal"
+else
+    # Fetch precompiled binary for current OS/architecture
+    OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+    ARCH="$(uname -m)"
+    case "$ARCH" in
+        x86_64) ARCH="amd64" ;;
+        aarch64|arm64) ARCH="arm64" ;;
+    esac
+
+    BIN_DIR="${HOME}/.local/bin"
+    mkdir -p "${BIN_DIR}"
+    RELEASE_URL="https://github.com/prasangapokharel/loopGoal/releases/latest/download/loopgoal-${OS}-${ARCH}.tar.gz"
+
+    echo -e "${YELLOW}Downloading pre-compiled LoopGoal binary for ${OS}/${ARCH}...${NC}"
+    if curl -fsSL "${RELEASE_URL}" -o /tmp/loopgoal.tar.gz 2>/dev/null; then
+        tar -xzf /tmp/loopgoal.tar.gz -C "${BIN_DIR}" loopgoal 2>/dev/null || true
+        chmod +x "${BIN_DIR}/loopgoal" 2>/dev/null || true
+        rm -f /tmp/loopgoal.tar.gz
+        echo -e " ${GREEN}✓${NC} Native CLI installed to ${BIN_DIR}/loopgoal"
+        if [[ ":$PATH:" != *":${BIN_DIR}:"* ]]; then
+            echo -e "   ${YELLOW}Hint:${NC} Add ${BIN_DIR} to your PATH: export PATH=\"\$PATH:${BIN_DIR}\""
+        fi
+    else
+        echo -e " ${YELLOW}!${NC} In-agent skills (/loopgoal) are active! To compile CLI manually: go install github.com/prasangapokharel/loopGoal/cmd/loopgoal@latest"
+    fi
 fi
 
 echo -e "\n${GREEN}🎉 LoopGoal installed successfully!${NC}"

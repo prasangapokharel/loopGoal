@@ -18,23 +18,50 @@ if (command === 'install' || command === 'setup' || command === 'plugins') {
   process.exit(0);
 }
 
-// Locate native Go binary
+// Support version command even without native binary
+if (command === 'version' || command === '--version' || command === '-v') {
+  try {
+    const pkg = require('../package.json');
+    console.log(`loopgoal v${pkg.version} (${process.platform}/${process.arch})`);
+    process.exit(0);
+  } catch {}
+}
+
+// Locate native Go binary across platforms
 function findBinary() {
   const home = os.homedir();
+  const isWin = process.platform === 'win32';
+  const binName = isWin ? 'loopgoal.exe' : 'loopgoal';
+
+  // 1. Check if loopgoal is in PATH
+  try {
+    const whichCmd = isWin ? `where ${binName}` : `which ${binName}`;
+    const out = execSync(whichCmd, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim().split('\n')[0].trim();
+    if (out && fs.existsSync(out)) return out;
+  } catch {}
+
+  // 2. Search common locations
   const candidates = [
-    'loopgoal',
-    path.join(home, 'go', 'bin', 'loopgoal'),
-    path.join('/usr', 'local', 'bin', 'loopgoal'),
-    path.join(home, '.local', 'bin', 'loopgoal'),
-    path.resolve(__dirname, '..', 'loopgoal')
+    path.join(home, 'go', 'bin', binName),
+    path.join('/usr', 'local', 'bin', binName),
+    path.join(home, '.local', 'bin', binName),
+    path.join(home, '.loopgoal', 'bin', binName),
+    path.resolve(__dirname, '..', binName),
+    path.resolve(__dirname, binName)
   ];
 
+  if (isWin) {
+    const appData = process.env.APPDATA || path.join(home, 'AppData', 'Roaming');
+    const localAppData = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
+    candidates.push(
+      path.join(appData, 'npm', binName),
+      path.join(localAppData, 'Programs', 'loopgoal', binName)
+    );
+  }
+
   for (const cand of candidates) {
-    try {
-      execSync(`which "${cand}" 2>/dev/null || stat "${cand}" 2>/dev/null`, { stdio: 'ignore' });
+    if (fs.existsSync(cand)) {
       return cand;
-    } catch {
-      // Continue searching
     }
   }
   return null;
@@ -47,7 +74,7 @@ if (binary) {
   const child = spawn(binary, args, { stdio: 'inherit' });
   child.on('exit', (code) => process.exit(code || 0));
 } else {
-  // Binary not found: run install or show instructions
+  // Binary not found: show help or run installer
   if (command === 'help' || command === '--help' || command === '-h') {
     console.log(`
 \x1b[36mLoopGoal — Autonomous Development Loop for AI Coding Agents\x1b[0m
@@ -56,9 +83,12 @@ Usage:
   npx loopgoal install       Install skills & rules for Antigravity, Claude, Codex, Cursor
   npx loopgoal init          Initialize .loopgoal configuration in current repository
   npx loopgoal run [goal]    Execute autonomous development loop
+  npx loopgoal scan          Inspect and categorize repository inventory
+  npx loopgoal plan          Display current task map, pending queue, and evidence
+  npx loopgoal test          Execute pre-flight gate checks
   npx loopgoal status        Check loop progress and state
-  npx loopgoal verify        Run configured verification checks
   npx loopgoal stop          Halt running loop
+  npx loopgoal version       Show version
 
 Quick setup:
   \x1b[32mnpx loopgoal install\x1b[0m

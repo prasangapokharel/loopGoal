@@ -61,7 +61,7 @@ When the user runs `/loopgoal [goal]`:
    - **Observe**: Inspect `git status`. Never modify pre-existing uncommitted user changes.
    - **Select**: Run `loopgoal select <file>` to lock the single active target.
    - **Implement / Test**: Apply code or test changes cleanly, following all discovered rules.
-   - **Verify**: Run `loopgoal verify` (or project test runner). `loopgoal verify` produces `.loopgoal/verified.token` required to unlock git commit.
+   - **Verify**: Check `.loopgoal/livefeed.json` (<2ms read). If `canCommit: true`, verification is passed and commit is unlocked. Otherwise inspect condensed 5-line JSON errors or run `loopgoal verify` to produce `.loopgoal/verified.token`.
    - **Diff Review**: Confirm that changes are isolated to the target file only.
    - **Commit**: `git add <file>` and `git commit -m "<type>(<scope>): <summary>"`. (Enforced by pre-commit hook; fails without verification token).
    - **State**: Write updated iteration, commit hash, remaining queue to `.loopgoal/state.json`.

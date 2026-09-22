@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -20,6 +21,7 @@ import (
 	"loopgoal/internal/git"
 	"loopgoal/internal/hook"
 	"loopgoal/internal/inventory"
+	"loopgoal/internal/livefeed"
 	"loopgoal/internal/loop"
 	"loopgoal/internal/mcp"
 	"loopgoal/internal/state"
@@ -28,7 +30,7 @@ import (
 )
 
 // Version is the current semantic release version of LoopGoal.
-const Version = "1.0.1"
+const Version = "1.1.0"
 
 // Execute handles CLI command dispatch.
 func Execute(args []string) error {
@@ -63,6 +65,10 @@ func Execute(args []string) error {
 		return RunTest(cmdArgs)
 	case "status":
 		return RunStatus(cmdArgs)
+	case "daemon", "watch":
+		return RunDaemon(cmdArgs)
+	case "livefeed", "feed":
+		return RunLivefeed(cmdArgs)
 	case "stop":
 		return RunStop(cmdArgs)
 	case "version", "--version", "-v":
@@ -100,6 +106,8 @@ Commands:
   scan      Inspect and categorize repository inventory
   plan      Display current task map, pending queue, and evidence
   test      Execute pre-flight gate checks (inventory, rules, agent, git)
+  daemon    Run polyglot background livefeed daemon (.loopgoal/livefeed.json)
+  livefeed  Display current livefeed verification status or JSON output
   status    Display current execution state
   stop      Request graceful termination of a running loop
   version   Display LoopGoal version
@@ -777,3 +785,79 @@ func RunMCP(args []string) error {
 	server := mcp.NewServer(workDir, os.Stdin, os.Stdout)
 	return server.Serve(context.Background())
 }
+
+// RunDaemon starts the polyglot livefeed background daemon.
+func RunDaemon(args []string) error {
+	fs := flag.NewFlagSet("daemon", flag.ContinueOnError)
+	dir := fs.String("dir", ".", "Project root directory")
+	interval := fs.Duration("interval", 1*time.Second, "Polling/check interval")
+	once := fs.Bool("once", false, "Run single check cycle and exit")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	workDir, err := filepath.Abs(*dir)
+	if err != nil {
+		return fmt.Errorf("resolving directory: %w", err)
+	}
+
+	fmt.Println("⚡ LoopGoal Polyglot Livefeed Daemon")
+	fmt.Println("──────────────────────────────────")
+	fmt.Printf("WorkDir:  %s\n", workDir)
+	if *once {
+		fmt.Println("Mode:     Single execution (--once)")
+	} else {
+		fmt.Printf("Interval: %v\n", *interval)
+		fmt.Println("Status:   Watching workspace for file changes...")
+	}
+	fmt.Println()
+
+	return livefeed.RunDaemon(workDir, *interval, *once, os.Stdout)
+}
+
+// RunLivefeed displays current livefeed status or outputs JSON.
+func RunLivefeed(args []string) error {
+	fs := flag.NewFlagSet("livefeed", flag.ContinueOnError)
+	dir := fs.String("dir", ".", "Project root directory")
+	asJSON := fs.Bool("json", false, "Output raw livefeed.json")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	workDir, err := filepath.Abs(*dir)
+	if err != nil {
+		return fmt.Errorf("resolving directory: %w", err)
+	}
+
+	feed, err := livefeed.ReadFeed(workDir)
+	if err != nil {
+		return fmt.Errorf("no active livefeed found in %s: %w", workDir, err)
+	}
+
+	if *asJSON {
+		data, _ := json.MarshalIndent(feed, "", "  ")
+		fmt.Println(string(data))
+		return nil
+	}
+
+	fmt.Println("LoopGoal Livefeed Status")
+	fmt.Println("────────────────────────")
+	fmt.Printf("Heartbeat:   #%d\n", feed.Heartbeat)
+	fmt.Printf("Updated At:  %s\n", feed.UpdatedAt)
+	fmt.Printf("Latency:     %s\n", feed.LatencyMs)
+	fmt.Printf("Status:      %s\n", feed.Status)
+	fmt.Printf("Can Commit:  %v\n", feed.CanCommit)
+	fmt.Printf("Runtimes:    %s\n", strings.Join(feed.Stats.Runtimes, ", "))
+	fmt.Printf("Errors:      %d\n", feed.Stats.TotalErrors)
+	if len(feed.Errors) > 0 {
+		fmt.Println("\nCondensed Errors:")
+		for i, e := range feed.Errors {
+			fmt.Printf("  [%d] (%s) %s:%d:%d [%s] %s\n", i+1, e.Source, e.File, e.Line, e.Col, e.Code, e.Message)
+		}
+	}
+	if feed.CanCommit && feed.VerificationToken != "" {
+		fmt.Printf("\n✓ Verification Token: %s\n", feed.VerificationToken)
+	}
+	return nil
+}
+

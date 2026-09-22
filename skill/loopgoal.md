@@ -126,7 +126,39 @@ tests/
 
 ---
 
-## 5. The Iteration Cycle (File by File)
+## 5. SUB-SECOND VERIFICATION VIA LIVEFEED DAEMON (.loopgoal/livefeed.json)
+
+LoopGoal includes an auto-detecting, polyglot background daemon (`loopgoal-daemon.mjs` / `loopgoal daemon`) that eliminates compiler cold-boot delays and prevents context bloat:
+
+### How It Works
+1. **0ms Sub-Second Agent Reads**:
+   - The daemon runs continuously in the background and writes an atomic `.loopgoal/livefeed.json`.
+   - The AI agent reads `.loopgoal/livefeed.json` directly from disk in **under 2ms**, eliminating 10–30s idle command waits.
+2. **Context Window Optimization (Condensed 5-Line Errors)**:
+   - Compilers and linters often dump hundreds of lines of noise and ANSI colors.
+   - The livefeed condenses failures into clean 5-line JSON error objects:
+     ```json
+     {
+       "source": "tsc",
+       "file": "src/controllers/auth.ts",
+       "line": 48,
+       "col": 12,
+       "code": "TS2339",
+       "message": "Property 'organizationId' does not exist on type 'SessionUser'."
+     }
+     ```
+   - Only the top 8 errors are preserved to protect context tokens for reasoning.
+3. **Deterministic Hard Lock**:
+   - The commit token is tied to `canCommit: true` / `status: "passing"`.
+   - When passing, the daemon writes `.loopgoal/verified.token`, instantly unlocking git commit.
+   - When failing, the token is automatically revoked to prevent accidental commits.
+4. **Stale Feed Protection**:
+   - Each cycle increments `heartbeat` and updates `updatedAt` (ISO timestamp).
+   - If `livefeed.json` is older than 10 seconds or absent, the agent falls back to running `loopgoal verify`.
+
+---
+
+## 6. The Iteration Cycle (File by File)
 
 For EVERY file in `"remaining_queue"`, follow this strict 7-step sequence:
 
@@ -140,9 +172,9 @@ For EVERY file in `"remaining_queue"`, follow this strict 7-step sequence:
 - Do NOT touch unrelated files in the same iteration (out-of-scope edits are blocked).
 
 ### Step 3: Run Zero-Trust Empirical Verification
-- Execute `loopgoal verify` or project verification shell commands (e.g., `pytest`, `ruff check`, `go test ./...`, `npm test`).
+- **Fast Path**: Check `.loopgoal/livefeed.json`. If fresh and `canCommit === true`, verification is already complete and token is unlocked!
+- **Standard Path**: If livefeed is failing or inactive, inspect condensed errors or run `loopgoal verify` to produce `.loopgoal/verified.token`.
 - Base success strictly on empirical command logs and zero-exit codes.
-- `loopgoal verify` generates the cryptographic one-time commit token (`.loopgoal/verified.token`).
 - If verification fails:
   - Analyze exact error log output.
   - Fix issues in the file immediately (or run `loopgoal rollback` if spiraling).
@@ -173,7 +205,7 @@ For EVERY file in `"remaining_queue"`, follow this strict 7-step sequence:
 
 ---
 
-## 6. Safety Constraints
+## 7. Safety Constraints
 
 - **No Remote Push**: Never run `git push`. LoopGoal operates exclusively on local Git.
 - **No Destructive Commands**: Never run `git reset --hard` or `git clean -fd`.
@@ -183,3 +215,4 @@ For EVERY file in `"remaining_queue"`, follow this strict 7-step sequence:
   - Max iterations reached.
   - Verification fails repeatedly and cannot be resolved.
   - All files in the target scope match 100% of project rules.
+

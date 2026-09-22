@@ -57,9 +57,9 @@ Here is LoopGoal autonomously auditing, refactoring, and verifying a multi-file 
 
 ---
 
-## Two-Layer Architecture
+## Three-Layer Architecture
 
-LoopGoal operates at two complementary levels — choose the one that fits your workflow:
+LoopGoal operates across three integrated levels — choose the one that fits your workflow:
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
@@ -80,10 +80,24 @@ LoopGoal operates at two complementary levels — choose the one that fits your 
 │                                                                 │
 │  loopgoal init    → auto-detects stack, writes .loopgoal/       │
 │  loopgoal run     → launches autonomous supervisor              │
+│  loopgoal scan    → classifies inventory & file roles           │
+│  loopgoal plan    → prints bipartite task-to-file map           │
 │  loopgoal status  → live iteration, PID, last commit            │
 │  loopgoal stop    → sends graceful shutdown signal              │
 │                                                                 │
 │  Ideal for CI/CD pipelines, background daemons, overnight runs. │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│            LAYER 3 — Polyglot Livefeed Daemon                   │
+│   Continuous sub-second background compiler/linter monitor.     │
+│                                                                 │
+│  loopgoal daemon  → watches changes, compiles .loopgoal/livefeed│
+│  loopgoal livefeed→ 0ms sub-second verification reads (<2ms)    │
+│  Hard-Lock Hook   → automatically manages .loopgoal/verified.tok│
+│                                                                 │
+│  Eliminates agent idle delays & condenses errors into 5 lines.  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -191,6 +205,28 @@ loopgoal stop
 
 ---
 
+### Option C — Polyglot Livefeed Daemon (Sub-Second 0ms Fast Path)
+
+For instant, sub-second verification feedback without compiler cold-boot delays:
+
+```bash
+# Start background watcher (Go CLI)
+loopgoal daemon
+
+# Or start via Node / NPX (Zero external dependencies)
+npx loopgoal daemon
+# or
+node loopgoal-daemon.mjs
+
+# Inspect current livefeed status and condensed errors
+loopgoal livefeed
+
+# Inspect as raw JSON
+loopgoal livefeed --json
+```
+
+---
+
 ## Real-World Use Cases
 
 ### 🔴 Problem 1: "My test coverage is stuck at 40% and writing tests for edge cases manually is tedious"
@@ -247,6 +283,17 @@ loopgoal run --iterations 30
 ### 🔴 Problem 4: "We run Go, Python, TypeScript, and Rust — we need one consistent protocol"
 LoopGoal is **100% project-agnostic**. The loop engine stays the same; only the `verify:` commands change:
 
+---
+
+### 🔴 Problem 5: "AI agents waste 30s cold-booting compilers and bloat context windows with 300-line stack traces"
+**Root Cause**: Shell command execution incurs heavy process startup latency, and unformatted compiler logs flood LLM context with noise.
+
+**Solution — LoopGoal Sub-Second Livefeed Daemon & Condensed Errors**:
+* **Sub-2ms Disk Reads**: Agents read `.loopgoal/livefeed.json` directly from disk with 0ms compiler wait.
+* **5-Line Condensed JSON Errors**: Stack traces are parsed into `{ source, file, line, col, code, message }` objects (capped at top 8).
+* **Deterministic Hard Lock**: Automatically issues `.loopgoal/verified.token` to unlock Git pre-commit hooks only when checks pass.
+* **Custom Monorepo Overrides**: Optional `loopgoal.config.json` allows custom scripts (Turborepo, Nx, Poetry, Vitest).
+
 ```yaml
 # Go Project
 verify:
@@ -289,6 +336,10 @@ verify:
 | `loopgoal init --force` | Overwrite existing configuration with freshly detected defaults |
 | `loopgoal run` | Execute the autonomous development supervisor loop |
 | `loopgoal run --iterations <N>` | Run up to a specific number of iterations |
+| `loopgoal daemon` | Run continuous polyglot background livefeed daemon (`.loopgoal/livefeed.json`) |
+| `loopgoal daemon --once` | Execute a single check cycle and update livefeed immediately |
+| `loopgoal livefeed` | Display livefeed status, latency, runtimes, and condensed errors |
+| `loopgoal livefeed --json` | Output raw `.loopgoal/livefeed.json` |
 | `loopgoal scan` | Inspect and categorize all repository files |
 | `loopgoal plan` | Display active task map, remaining queue, and verified evidence |
 | `loopgoal test` | Run pre-flight diagnostics on Git, rules, inventory, and agent |
@@ -352,12 +403,15 @@ loopgoal/
 ├── internal/
 │   ├── agent/                  # Agent interface & CommandAgent (streaming stdout)
 │   ├── audit/                  # Rule discovery, grep pattern sweeps, static checks
-│   ├── cli/                    # CLI command handlers (init/run/scan/plan/test/status/stop/version)
+│   ├── cli/                    # CLI command handlers (init/run/daemon/livefeed/scan/plan/test/etc.)
 │   ├── config/                 # YAML config parser & defaults
 │   ├── detect/                 # Project stack autodetection (Go/Node/Python/Rust)
 │   ├── git/                    # Safe Git operations (commit, stage, diff, snapshot; NO push)
+│   ├── hook/                   # Git hard enforcement hooks (pre-commit, pre-push)
 │   ├── inventory/              # Deterministic repository scanner & file role classification
+│   ├── livefeed/               # Sub-second livefeed engine, atomic writer & error condenser
 │   ├── loop/                   # Autonomous supervisor engine
+│   ├── mcp/                    # Model Context Protocol server over stdio
 │   ├── reconcile/              # Expected vs actual diff reconciliation & evidence tracking
 │   ├── resolve/                # Cross-platform binary discovery & headless flags
 │   ├── state/                  # Atomic JSON state persistence with PID tracking
@@ -366,7 +420,8 @@ loopgoal/
 ├── adapters/                   # Adapters for Antigravity, Claude, Codex, Cursor
 ├── plugins/                    # Antigravity / Gemini plugin bundle
 ├── skills/loopgoal/            # Skills.sh / Agent skills standard directory
-├── tests/                      # 16 test packages covering unit, integration & E2E scenarios
+├── tests/                      # 17 test packages covering unit, integration & E2E scenarios
+├── loopgoal-daemon.mjs         # Standalone zero-dependency polyglot livefeed daemon
 ├── install.sh                  # Universal shell installer with binary fallback
 ├── package.json                # NPM package specification
 └── README.md
@@ -377,7 +432,7 @@ loopgoal/
 ## Testing & Quality Assurance
 
 ```bash
-# Run all 16 test packages
+# Run all 17 test packages
 go test -v ./...
 
 # Run pre-flight system diagnostics
@@ -387,13 +442,16 @@ loopgoal test --smoke
 Every commit is gated by our comprehensive test suite:
 - `tests/agent` — Streaming output, signal parsing, placeholder expansion
 - `tests/audit` — Rule discovery, grep sweeps, static analyzers
-- `tests/cli` — All CLI commands (`init`, `run`, `scan`, `plan`, `test`, `status`, `stop`, `version`)
+- `tests/cli` — All CLI commands (`init`, `run`, `daemon`, `livefeed`, `scan`, `plan`, `test`, `status`, `stop`, `version`)
 - `tests/config` — YAML parsing, validation, presets
 - `tests/detect` — Multi-stack project detection
 - `tests/e2e` — False-done prevention, monorepos, polyglot workflows, verify-fix cycles
 - `tests/git` — Git safety, isolation, snapshot protection
+- `tests/hook` — Hard pre-commit token verification & remote push locks
 - `tests/inventory` — Deterministic scanning and classification
+- `tests/livefeed` — Atomic livefeed updates, compiler parsers, hard-lock tokens
 - `tests/loop` — Autonomous supervisor engine cycles
+- `tests/mcp` — Model Context Protocol server tools
 - `tests/reconcile` — Diff reconciliation & dynamic task expansion
 - `tests/resolve` — Platform binary resolution & install hints
 - `tests/state` — Atomic state recovery and transitions

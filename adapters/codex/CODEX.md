@@ -63,7 +63,7 @@ For every iteration, the agent must:
 2. **Discover Rules** — check `AGENTS.md`, `.cursor/rules/*.mdc`, `.agents/rules/*.md`, `.agents/skills/*/SKILL.md`.
 3. **Select** — identify ONE small, bounded improvement or unit test toward the goal.
 4. **Implement** — apply changes or tests to only the target file.
-5. **Verify** — run configured verification commands (`pytest`, `ruff check`, `go test ./...`, etc.). Fix failures before proceeding.
+5. **Verify** — fast-check `.loopgoal/livefeed.json` (<2ms read); if `canCommit: true` proceed to commit. Otherwise run configured verification commands (`pytest`, `ruff check`, `go test ./...`, etc.) or read condensed 5-line errors. Fix failures before proceeding.
 6. **Review Diff** — confirm changes are isolated. Never touch pre-existing uncommitted files.
 7. **Commit** — `git add <file>` + `git commit -m "<type>(<scope>): <desc>"`. Never push.
 8. **Update State** — write updated `.loopgoal/state.json` with new iteration count, commit hash, and remaining queue.

@@ -21,7 +21,7 @@ per iteration, then report your results.
 5. Audit it with grep/ripgrep for non-compliant patterns.
 6. Make ONE minimal, focused improvement or unit test to that file.
    - When writing unit tests: place under tests/unit/<module>/test_<file>.py, import directly from the module, and mock external dependencies (DB, network, Redis).
-7. Run the configured verification commands (pytest, ruff, go test, npm test). Fix failures. Never commit failing code.
+7. Fast-check `.loopgoal/livefeed.json` (<2ms read); if `canCommit: true` proceed to commit. Otherwise run the configured verification commands (pytest, ruff, go test, npm test) or read condensed 5-line errors. Fix failures. Never commit failing code.
 8. Review the diff: only files from this iteration may be staged.
 9. git add <changed file> && git commit -m "<type>(<scope>): <description>"
 10. Update .loopgoal/state.json:

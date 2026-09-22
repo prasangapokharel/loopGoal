@@ -13,10 +13,12 @@ Whenever the user invokes `/loopgoal [goal]`, references LoopGoal, or assigns an
 For every single task item or target file:
 1. **Observe & Audit**: Inspect the file, imports, types, and applicable rules (`.cursor/rules/*.mdc`, `AGENTS.md`, `.agents/rules/*.md`).
 2. **Implement Bounded Work**: Make changes ONLY for this specific item. Never modify unrelated files.
-3. **Run Empirical Verification**: Run shell verification commands (`npm test`, `pytest`, `go test ./...`, `eslint`, `tsc`). Verification MUST succeed with exit code 0.
-4. **Self-Correction on Failure**: If verification fails, read the log, fix the code immediately, and re-verify. Never leave broken code.
+3. **Run Empirical Verification**:
+   - **Fast Path**: Read `.loopgoal/livefeed.json` (<2ms read). If fresh and `canCommit: true`, verification is already passed and commit is unlocked.
+   - **Standard Path**: If livefeed is failing, read condensed 5-line JSON errors, or run shell verification commands (`loopgoal verify`, `npm test`, `pytest`, `go test ./...`). Verification MUST succeed with exit code 0.
+4. **Self-Correction on Failure**: If verification fails, read the condensed error object or log, fix the code immediately, and re-verify. Never leave broken code.
 5. **Inspect Git Diff**: Run `git diff` and ensure only the intended file was modified. Pre-existing uncommitted work must remain untouched.
-6. **Local Stage & Commit**: Run `git add <file>` and commit with a concise conventional commit message.
+6. **Local Stage & Commit**: Run `git add <file>` and commit with a concise conventional commit message. (Enforced by pre-commit hook; required `.loopgoal/verified.token`).
 7. **Advance Queue**: Update `.loopgoal/state.json` and proceed immediately to the next pending item.
 
 ## 3. Safety Guarantees

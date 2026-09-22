@@ -144,3 +144,23 @@ func TestCLIVersion(t *testing.T) {
 	}
 }
 
+func TestCLIDaemonAndLivefeed(t *testing.T) {
+	dir := setupTestGitProject(t)
+
+	// Run daemon once
+	if err := cli.Execute([]string{"daemon", "-dir", dir, "-once"}); err != nil {
+		t.Fatalf("cli daemon failed: %v", err)
+	}
+
+	// Read livefeed
+	if err := cli.Execute([]string{"livefeed", "-dir", dir}); err != nil {
+		t.Fatalf("cli livefeed failed: %v", err)
+	}
+
+	// Read livefeed as JSON
+	if err := cli.Execute([]string{"livefeed", "-dir", dir, "-json"}); err != nil {
+		t.Fatalf("cli livefeed -json failed: %v", err)
+	}
+}
+
+

@@ -57,6 +57,7 @@ const claudeSrc = path.join(ROOT_DIR, 'adapters', 'claude', 'CLAUDE.md');
 const codexSrc = path.join(ROOT_DIR, 'adapters', 'codex', 'CODEX.md');
 const cursorSrc = path.join(ROOT_DIR, 'adapters', 'cursor', 'loopgoal.mdc');
 const pluginJsonSrc = path.join(ROOT_DIR, 'plugins', 'loopgoal', 'plugin.json');
+const daemonSrc = path.join(ROOT_DIR, 'loopgoal-daemon.mjs');
 
 let installedCount = 0;
 
@@ -80,6 +81,9 @@ try {
   }
   if (fs.existsSync(pluginJsonSrc)) {
     copyFile(pluginJsonSrc, path.join(geminiConfig, 'plugins', 'loopgoal', 'plugin.json'));
+  }
+  if (fs.existsSync(daemonSrc)) {
+    copyFile(daemonSrc, path.join(geminiConfig, 'plugins', 'loopgoal', 'loopgoal-daemon.mjs'));
   }
   console.log(' \x1b[32m✓\x1b[0m Google Antigravity / Gemini plugin installed (~/.gemini/config/)');
   installedCount++;

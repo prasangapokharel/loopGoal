@@ -1,12 +1,14 @@
 {
   "name": "loopgoal",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Autonomous development loop plugin & CLI supervisor for AI coding agents (Antigravity, Gemini, Claude Code, Codex, Cursor)",
   "main": "bin/loopgoal.js",
   "bin": {
     "loopgoal": "bin/loopgoal.js"
   },
   "scripts": {
+    "daemon": "node loopgoal-daemon.mjs",
+    "livefeed": "node loopgoal-daemon.mjs --once",
     "install-plugin": "node bin/install.js",
     "test": "go test ./...",
     "prepack": "npm test"
@@ -28,7 +30,9 @@
     "cursor",
     "autonomous-loop",
     "development-loop",
-    "tdd"
+    "tdd",
+    "livefeed",
+    "daemon"
   ],
   "author": "Prasanga Pokharel",
   "license": "MIT",
@@ -43,6 +47,7 @@
     "skills",
     "skill",
     ".agents",
+    "loopgoal-daemon.mjs",
     "install.sh",
     "AGENTS.md",
     "README.md"

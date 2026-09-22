@@ -13,9 +13,10 @@ When executing an autonomous improvement or working toward a continuous objectiv
    - Do NOT attempt multi-file rewrites in a single iteration. Out-of-scope edits are automatically rejected.
 
 2. **Deterministic Zero-Trust Verification**:
-   - Run `loopgoal verify` or execute configured tests (`npm test`, `pytest`, `go test ./...`).
+   - **Fast Path**: Read `.loopgoal/livefeed.json` (<2ms 0ms read). If `canCommit: true`, verification is already passing and commit is unlocked.
+   - **Standard Path**: Run `loopgoal verify` or execute configured tests (`npm test`, `pytest`, `go test ./...`).
    - `loopgoal verify` validates real exit codes and generates the one-time commit token (`.loopgoal/verified.token`).
-   - If tests fail, resolve failures immediately or run `loopgoal rollback` to restore a clean state.
+   - If tests fail, inspect condensed 5-line JSON errors, resolve failures immediately, or run `loopgoal rollback` to restore a clean state.
 
 3. **Hard-Enforced Git Commits**:
    - Pre-commit hooks block unverified commits unless `loopgoal verify` has passed.

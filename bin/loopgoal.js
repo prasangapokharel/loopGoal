@@ -18,6 +18,16 @@ if (command === 'install' || command === 'setup' || command === 'plugins') {
   process.exit(0);
 }
 
+// Support daemon / watch command even without native Go binary
+if (command === 'daemon' || command === 'watch') {
+  const daemonScript = path.resolve(__dirname, '..', 'loopgoal-daemon.mjs');
+  if (fs.existsSync(daemonScript)) {
+    const child = spawn(process.execPath, [daemonScript, ...args.slice(1)], { stdio: 'inherit' });
+    child.on('exit', (code) => process.exit(code || 0));
+    return;
+  }
+}
+
 // Support version command even without native binary
 if (command === 'version' || command === '--version' || command === '-v') {
   try {
@@ -87,6 +97,8 @@ Usage:
   npx loopgoal select <file> Lock a single target file for the current iteration
   npx loopgoal hook install  Install Git hard enforcement hooks (pre-commit, pre-push)
   npx loopgoal rollback      Restore working tree to clean state (discard unverified edits)
+  npx loopgoal daemon        Run polyglot background livefeed daemon (.loopgoal/livefeed.json)
+  npx loopgoal livefeed      Display livefeed verification status or token
   npx loopgoal mcp           Run Model Context Protocol (MCP) server over stdio
   npx loopgoal scan          Inspect and categorize repository inventory
   npx loopgoal plan          Display current task map, pending queue, and evidence
